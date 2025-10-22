@@ -2,7 +2,6 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <!-- **QUAN TRỌNG:** Thêm viewport meta tag cho responsive -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Báo Giá Thiết Kế Website - Nasani.vn</title>
     <!-- Load Tailwind CSS -->
@@ -10,19 +9,23 @@
     <style>
         /* Custom font import for professional look */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f7f9fc; /* Light background */
-            /* Tăng padding-bottom để chừa chỗ cho sticky footer */
-            /* Padding này sẽ cần lớn hơn trên mobile do footer cao hơn */
-            padding-bottom: 350px; /* Default cho mobile */
+            /* Padding-bottom được điều chỉnh:
+              - 100px trên mobile để chừa chỗ cho thanh handle (88px + 12px)
+              - 180px trên desktop để chừa chỗ cho toàn bộ footer
+            */
+            padding-bottom: 100px;
         }
-        /* Điều chỉnh padding cho màn hình lớn hơn */
-        @media (min-width: 640px) { /* sm breakpoint */
-             body { padding-bottom: 300px; }
-        }
+        
+        /* On desktop, restore original padding */
         @media (min-width: 1024px) { /* lg breakpoint */
-             body { padding-bottom: 250px; }
+            body {
+                /* Đủ chỗ cho footer đầy đủ trên desktop */
+                padding-bottom: 180px; 
+            }
         }
 
         /* Custom styling for icons (using a common set for clean display) */
@@ -44,50 +47,194 @@
             border-radius: 0.25rem;
             border: 1px solid #d1d5db;
         }
-        
-        /* CSS cho phần ẩn/hiện gói mở rộng */
-        .hidden-hosting-packages {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.5s ease-in-out;
-        }
-        .hidden-hosting-packages.expanded {
-            max-height: 3000px; /* Giá trị lớn để đảm bảo nội dung hiện ra */
+
+        /* --- CSS CHO NGĂN KÉO THANH TOÁN (MOBILE) --- */
+
+        /* Mobile Drawer Styles */
+        @media (max-width: 1023px) { /* Dưới breakpoint lg */
+            #drawer-handle {
+                height: 88px; /* Cố định chiều cao cho handle để tính toán transform */
+            }
+            
+            #payment-drawer {
+                /* Dịch chuyển toàn bộ ngăn kéo xuống, chỉ chừa lại phần handle (88px) */
+                transform: translateY(calc(100% - 88px)); 
+            }
+
+            #payment-drawer.is-expanded {
+                /* Trượt hết lên để hiển thị đầy đủ */
+                transform: translateY(0);
+                
+                /* Xoay icon mũi tên */
+                #drawer-icon {
+                    transform: rotate(180deg);
+                }
+            }
         }
 
-        /* Ẩn radio button gốc */
-        input[name="industry-option"] {
-            display: none;
+        /* Desktop Styles: Ẩn handle, hiển thị content */
+        @media (min-width: 1024px) {
+            #drawer-handle {
+                display: none; /* Ẩn handle trên desktop */
+            }
+            #payment-drawer {
+                transform: none !important; /* Đảm bảo footer luôn hiển thị */
+            }
         }
+        /* --- KẾT THÚC CSS NGĂN KÉO --- */
 
-        /* Style cho label của ngành */
-        label.industry-label {
-            transition: all 0.3s ease;
-            cursor: pointer;
-            border-width: 2px;
-            border-color: #e5e7eb; /* border-gray-200 */
-        }
-        
-        /* Style khi radio được chọn */
-        input[name="industry-option"]:checked + label.industry-label {
-            border-color: #4f46e5; /* border-nasani-primary */
-            background-color: #eef2ff; /* bg-nasani-light */
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }
-
-        /* Ẩn các gói add-on theo mặc định (JS sẽ xử lý hiển thị) */
-        .addon-group {
-            display: none;
-        }
-        
-        /* CSS CHO MODAL MỚI */
-        #alert-modal {
-            transition: opacity 0.3s ease;
-        }
     </style>
 </head>
 <body>
-    
+    <script>
+        // Cấu hình Tailwind CSS (giữ nguyên)
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'nasani-primary': '#4f46e5', // Indigo
+                        'nasani-light': '#eef2ff',
+                        'hospital-theme': '#06b6d4', // Cyan for a clean, medical feel
+                    }
+                }
+            }
+        }
+
+        // --- HỆ THỐNG TÍNH GIÁ TƯƠNG TÁC (JavaScript) ---
+
+        // Bảng giá cố định (Đơn vị: VNĐ)
+        const PRICES = {
+            // Package prices
+            package_basic: 7500000,
+            package_multiple_interface: 10500000,
+            package_full: 13500000,
+            // Add-on features
+            addon_doctor_lookup: 2000000,
+            addon_rating_system: 3500000,
+            addon_bmi_calculator: 2500000,
+            addon_advanced_api: 5000000,
+            // Hosting (tính theo năm, đã làm tròn)
+            hosting_5gb: 4872000,
+            hosting_7gb: 6000000,
+            hosting_10gb: 7200000,
+            // Domain .COM (tính theo năm)
+            domain_com: 366120,
+        };
+        
+        // Hàm format tiền tệ (Đồng)
+        const formatCurrency = (amount) => {
+            return new Intl.NumberFormat('vi-VN', { 
+                style: 'currency', 
+                currency: 'VND',
+                minimumFractionDigits: 0
+            }).format(amount);
+        };
+
+        // Hàm tính toán tổng chi phí chính
+        const calculateTotal = () => {
+            let totalCost = 0;
+            let packagePrice = 0;
+            let isFullPackage = false;
+            
+            // 1. TÍNH GÓI THIẾT KẾ (Radio)
+            const selectedPackage = document.querySelector('input[name="package-option"]:checked');
+            if (selectedPackage) {
+                packagePrice = parseInt(selectedPackage.value);
+                totalCost += packagePrice;
+                if (selectedPackage.id === 'package_full') {
+                    isFullPackage = true;
+                }
+            } 
+
+            // 2. TÍNH TÍNH NĂNG ADD-ON (Checkbox)
+            let currentAddonCost = 0;
+            document.querySelectorAll('input[name="addon-feature"]:checked').forEach(checkbox => {
+                const addonPrice = parseInt(checkbox.value);
+                totalCost += addonPrice;
+                currentAddonCost += addonPrice;
+            });
+
+            // 3. TÍNH HOSTING (Radio)
+            let currentInfrastructureCost = 0;
+            const selectedHosting = document.querySelector('input[name="hosting-option"]:checked');
+            if (selectedHosting) {
+                 const hostingPrice = parseInt(selectedHosting.value);
+                 totalCost += hostingPrice;
+                 currentInfrastructureCost += hostingPrice;
+            }
+            
+            // 4. TÍNH DOMAIN (.COM) - MIỄN PHÍ nếu chọn Gói Đầy Đủ
+            const domainPrice = PRICES.domain_com;
+            const domainNote = document.getElementById('domain-note');
+            
+            if (selectedHosting) { // Chỉ tính domain nếu có chọn hosting (hoạt động)
+                if (!isFullPackage) { 
+                    totalCost += domainPrice;
+                    currentInfrastructureCost += domainPrice;
+                    domainNote.classList.add('hidden');
+                } else {
+                    domainNote.classList.remove('hidden'); // Hiển thị thông báo Free
+                }
+            } else {
+                 domainNote.classList.add('hidden');
+            }
+
+
+            // 5. CẬP NHẬT GIAO DIỆN HIỂN THỊ
+            document.getElementById('package-price-display').textContent = formatCurrency(packagePrice);
+            document.getElementById('addon-price-display').textContent = formatCurrency(currentAddonCost);
+            document.getElementById('infrastructure-price-display').textContent = formatCurrency(currentInfrastructureCost);
+            document.getElementById('total-cost-display').textContent = formatCurrency(totalCost);
+            
+            // CẬP NHẬT TỔNG TIỀN TRÊN THANH TRƯỢT MOBILE
+            const mobileTotalDisplay = document.getElementById('total-cost-display-mobile');
+            if (mobileTotalDisplay) {
+                mobileTotalDisplay.textContent = formatCurrency(totalCost);
+            }
+        };
+
+        // Gắn sự kiện cho tất cả input liên quan
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('input[name="package-option"], input[name="addon-feature"], input[name="hosting-option"]').forEach(input => {
+                input.addEventListener('change', calculateTotal);
+            });
+            // Tính toán ban đầu
+            calculateTotal();
+
+            // --- LOGIC CHO NGĂN KÉO (DRAWER) THANH TOÁN ---
+            const drawer = document.getElementById('payment-drawer');
+            const handle = document.getElementById('drawer-handle');
+            const handleText = document.getElementById('drawer-handle-text');
+
+            if (handle && drawer) {
+                handle.addEventListener('click', () => {
+                    drawer.classList.toggle('is-expanded');
+                    
+                    // Thay đổi văn bản "Xem chi tiết" / "Thu gọn"
+                    if (drawer.classList.contains('is-expanded')) {
+                        handleText.textContent = 'Thu gọn';
+                    } else {
+                        handleText.textContent = 'Xem chi tiết';
+                    }
+                });
+            }
+            // --- KẾT THÚC LOGIC NGĂN KÉO ---
+        });
+        
+        // Hàm Call to Action cuối cùng (Yêu cầu Báo giá Chính thức)
+        const finalizeQuote = () => {
+            const totalCostText = document.getElementById('total-cost-display').textContent;
+            const selectedPackage = document.querySelector('input[name="package-option"]:checked');
+            
+            if (!selectedPackage) {
+                // Sử dụng modal tùy chỉnh thay vì alert()
+                alert('Vui lòng chọn một Gói Thiết kế trước khi yêu cầu báo giá chi tiết!');
+                return;
+            }
+            
+            alert(`✅ Yêu cầu báo giá của bạn đã được gửi!\n\nTổng chi phí tạm tính (trọn gói): ${totalCostText}.\n\nChúng tôi sẽ liên hệ lại ngay (0909876817) để xác nhận chi tiết và ký hợp đồng.`);
+        }
+    </script>
     <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
 
         <!-- Header Section -->
@@ -95,98 +242,129 @@
             <h1 class="text-3xl sm:text-4xl font-extrabold text-nasani-primary mb-2">
                 BÁO GIÁ DỊCH VỤ THIẾT KẾ WEBSITE
             </h1>
-            <p class="text-lg sm:text-xl text-gray-700">Giải pháp chuyên nghiệp cho <span class="font-semibold text-hospital-theme">Mọi Ngành Nghề</span></p>
+            <p class="text-xl text-gray-700">Giải pháp chuyên nghiệp cho <span class="font-semibold text-hospital-theme">Công ty Cổ phần Bệnh viện Sài Gòn TG</span></p>
             
             <!-- THÔNG TIN CÔNG TY NASANI - Giữ nguyên -->
              <div class="mt-4 text-sm text-gray-600 bg-gray-50 p-4 rounded-lg border border-gray-100">
-                 <p class="font-bold text-gray-800 mb-2 uppercase text-base">CÔNG TY TNHH CÔNG NGHỆ PHẦN MỀM NASANI</p>
-                 
-                 <!-- **Responsive:** Đảm bảo grid hoạt động tốt trên mobile (mặc định 1 cột), mở rộng trên md -->
-                 <div class="grid grid-cols-1 md:grid-cols-3 gap-2 text-left pt-2 border-t border-gray-200 space-y-3 md:space-y-0">
-                     <p class="flex items-start text-sm col-span-full md:col-span-1">
-                         <svg class="w-4 h-4 mr-2 mt-0.5 text-nasani-primary flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
-                         <span class="text-gray-700">Lầu 1 Tòa nhà Saigon ICT, Lô 46 CVPM Quang Trung, P. Trung Mỹ Tây, TP. Hồ Chí Minh.</span>
-                     </p>
-                     <div class="flex flex-col space-y-1 text-sm md:col-span-1">
+                <p class="font-bold text-gray-800 mb-2 uppercase text-base">CÔNG TY TNHH CÔNG NGHỆ PHẦN MỀM NASANI</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-2 text-left pt-2 border-t border-gray-200 space-y-3 md:space-y-0">
+                    <p class="flex items-start text-sm col-span-full md:col-span-1">
+                        <svg class="w-4 h-4 mr-2 mt-0.5 text-nasani-primary flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                        <span class="text-gray-700">Lầu 1 Tòa nhà Saigon ICT, Lô 46 CVPM Quang Trung, P. Trung Mỹ Tây, TP. Hồ Chí Minh.</span>
+                    </p>
+                    <div class="flex flex-col space-y-1 text-sm md:col-span-1">
+                        <p class="flex items-center text-gray-700 font-medium">
+                            <svg class="w-4 h-4 mr-2 text-hospital-theme flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.28-.28.67-.36 1.02-.23 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1v3c0 .55-.45 1-1 1C10.74 21 3 13.26 3 4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.13.35.05.74-.23 1.02l-2.2 2.2z"/></svg> 
+                            Tel: 028.37154879 | Fax: 028.37154878
+                        </p>
                          <p class="flex items-center text-gray-700 font-medium">
-                             <svg class="w-4 h-4 mr-2 text-hospital-theme flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.28-.28.67-.36 1.02-.23 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1v3c0 .55-.45 1-1 1C10.74 21 3 13.26 3 4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.13.35.05.74-.23 1.02l-2.2 2.2z"/></svg> 
-                             Tel: 028.37154879 | Fax: 028.37154878
-                         </p>
-                          <p class="flex items-center text-gray-700 font-medium">
-                             <svg class="w-4 h-4 mr-2 text-hospital-theme flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg> 
-                             Email: nasani@nasani.vn
-                         </p>
-                     </div>
-                     <div class="flex flex-col space-y-1 text-sm md:col-span-1">
-                         <p class="flex items-center text-gray-700 font-medium">
-                             <svg class="w-4 h-4 mr-2 text-hospital-theme flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M11 17h2v-6h-2v6zm1-15C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
-                             MST: 0319082906
-                         </p>
-                         <p class="flex items-center text-gray-700 font-medium">
-                             <svg class="w-4 h-4 mr-2 text-hospital-theme flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zm-2-5H6v-2h12v2z"/></svg> 
-                             TK: 1357668868 (Techcombank)
-                         </p>
-                     </div>
-                 </div>
+                            <svg class="w-4 h-4 mr-2 text-hospital-theme flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg> 
+                            Email: nasani@nasani.vn
+                        </p>
+                    </div>
+                    <div class="flex flex-col space-y-1 text-sm md:col-span-1">
+                        <p class="flex items-center text-gray-700 font-medium">
+                            <svg class="w-4 h-4 mr-2 text-hospital-theme flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M11 17h2v-6h-2v6zm1-15C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
+                            MST: 0319082906
+                        </p>
+                        <p class="flex items-center text-gray-700 font-medium">
+                            <svg class="w-4 h-4 mr-2 text-hospital-theme flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zm-2-5H6v-2h12v2z"/></svg> 
+                            TK: 1357668868 (Techcombank)
+                        </p>
+                    </div>
+                </div>
             </div>
         </header>
 
-        <!-- II. CÁC GÓI THIẾT KẾ & TÍCH CHỌN -->
-        <!-- ID 'package-section' được thêm vào đây để cuộn trang -->
-        <section id="package-section" class="mb-12">
-            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-nasani-primary pb-2 mb-8">II. Chọn Gói Thiết Kế (Không áp dụng VAT cho phần này)</h2>
+        <!-- I. Giới Thiệu Chung & Thấu Hiểu Khách Hàng -->
+        <section class="mb-12">
+            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-nasani-primary pb-2 mb-6">I. Giới Thiệu & Thấu Hiểu Khách Hàng</h2>
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold text-nasani-primary mb-3">1. Giới thiệu Nasani.vn</h3>
+                    <p class="text-gray-600 mb-2">Nasani.vn là đối tác cung cấp giải pháp website chuyên nghiệp, đảm bảo các tiêu chí hàng đầu về kỹ thuật:</p>
+                    <ul class="list-disc pl-5 text-gray-700 space-y-2">
+                        <li>Thiết kế Chuẩn SEO ngay từ cấu trúc, tối ưu hóa công cụ tìm kiếm.</li>
+                        <li>Tốc độ tải trang siêu tốc và vận hành ổn định.</li>
+                        <li>Nền tảng kỹ thuật vững chắc và Bảo mật cao, phù hợp với lĩnh vực Y tế.</li>
+                        <li><a href="https://nasani.vn" class="text-nasani-primary hover:underline font-medium" target="_blank">Xem thêm tại nasani.vn</a></li>
+                    </ul>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md border-t-4 border-hospital-theme">
+                    <h3 class="text-xl font-semibold text-hospital-theme mb-3">2. Cam Kết Kỹ Thuật Cơ Bản (Responsive & SEO)</h3>
+                    <p class="text-gray-600 mb-2">Mọi website được thiết kế bởi Nasani đều đảm bảo các tiêu chí sau:</p>
+                    <ul class="list-disc pl-5 text-gray-700 space-y-2">
+                        <li class="font-bold text-nasani-primary flex items-start">
+                            <svg class="icon text-green-500 mt-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                            Thiết kế Responsive (Tương thích mọi thiết bị: Mobile, Tablet, Desktop).
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="icon text-green-500 mt-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                            Cấu trúc Chuẩn SEO tối ưu cho Google.
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="icon text-green-500 mt-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                            Tích hợp Hệ thống Đặt lịch khám Online (Tùy gói).
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </section>
 
-            <!-- **Responsive:** Mặc định 1 cột, md 3 cột -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <!-- II. CÁC GÓI THIẾT KẾ & TÍCH CHỌN -->
+        <section class="mb-12">
+            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-nasani-primary pb-2 mb-8">II. Chọn Gói Thiết Kế (Bắt buộc chọn 1)</h2>
+
+            <div class="grid md:grid-cols-3 gap-8">
 
                 <!-- Gói Cơ Bản - RADIO OPTION -->
                 <label for="package_basic" class="cursor-pointer bg-white p-6 rounded-xl shadow-lg border-4 border-gray-400 has-[:checked]:border-gray-700 has-[:checked]:ring-4 has-[:checked]:ring-gray-300 transition duration-300 hover:shadow-xl flex flex-col">
                     <input type="radio" id="package_basic" name="package-option" value="7500000" class="hidden">
                     <h3 class="text-2xl font-extrabold text-gray-700 mb-2">1. Gói Cơ Bản</h3>
                     <p class="text-sm text-gray-500 mb-4">Dành cho website giới thiệu, thông tin tĩnh.</p>
-                    <div class="text-3xl sm:text-4xl font-bold text-gray-800 mb-4"> <!-- Giảm size chữ 1 chút -->
+                    <div class="text-4xl font-bold text-gray-800 mb-4">
                         7.500.000 <span class="text-lg font-normal">VNĐ</span>
                     </div>
                     <ul class="space-y-3 text-gray-700 flex-grow">
-                        <li class="flex items-start">Thiết kế theo yêu cầu (1 Layout)</li>
-                        <li class="flex items-start">Tối ưu tốc độ tải trang cơ bản</li>
-                        <li class="flex items-start">Module Tin Tức/Sự Kiện</li>
-                        <li class="flex items-start">05 trang nội dung tĩnh (Giới thiệu, Liên hệ...)</li>
+                        <li class="flex items-start"><svg class="icon text-green-500 mt-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>Thiết kế theo yêu cầu (1 Layout)</li>
+                        <li class="flex items-start"><svg class="icon text-green-500 mt-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>Tối ưu tốc độ tải trang cơ bản</li>
+                        <li class="flex items-start"><svg class="icon text-green-500 mt-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>Module Tin Tức/Sự Kiện (Blog/Y tế)</li>
+                        <li class="flex items-start"><svg class="icon text-green-500 mt-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>05 trang nội dung tĩnh (Giới thiệu, Liên hệ...)</li>
                     </ul>
                     <div class="mt-6 py-2 px-4 bg-gray-500 text-white font-bold rounded-lg text-center text-sm">CHỌN GÓI</div>
                 </label>
 
                 <!-- Gói Đa Giao Diện (Popular) - RADIO OPTION -->
-                <!-- **Responsive:** Bỏ scale trên md, chỉ giữ border -->
-                <label for="package_multiple_interface" class="cursor-pointer bg-white p-6 rounded-xl shadow-lg border-4 border-nasani-primary has-[:checked]:border-nasani-primary has-[:checked]:ring-4 has-[:checked]:ring-indigo-300 transition duration-300 hover:shadow-xl flex flex-col">
-                    <input type="radio" id="package_multiple_interface" name="package-option" value="10500000" class="hidden"> 
+                <label for="package_multiple_interface" class="cursor-pointer bg-white p-6 rounded-xl shadow-lg border-4 border-nasani-primary has-[:checked]:border-nasani-primary has-[:checked]:ring-4 has-[:checked]:ring-indigo-300 transition duration-300 hover:shadow-xl flex flex-col md:transform md:scale-105 md:z-10">
+                    <input type="radio" id="package_multiple_interface" name="package-option" value="10500000" class="hidden" checked> <!-- Mặc định -->
                     <h3 class="text-2xl font-extrabold text-nasani-primary mb-2">2. Đa Giao Diện</h3>
                     <p class="text-sm text-gray-500 mb-4">Website chuyên nghiệp, đa dạng module và thông tin.</p>
-                    <div class="text-3xl sm:text-4xl font-bold text-nasani-primary mb-4">
+                    <div class="text-4xl font-bold text-nasani-primary mb-4">
                         10.500.000 <span class="text-lg font-normal">VNĐ</span>
                     </div>
                     <ul class="space-y-3 text-gray-700 flex-grow">
-                        <li class="flex items-start">Bao gồm đầy đủ Gói Cơ Bản</li>
-                        <li class="flex items-start">Đóng dấu logo thương hiệu</li>
-                        <li class="flex items-start">Tối ưu SEO chuyên sâu & Bảo mật nâng cao</li>
-                        <li class="flex items-start">Module Danh sách Dịch vụ/Chuyên khoa</li>
+                        <li class="flex items-start"><svg class="icon text-green-500 mt-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>Bao gồm đầy đủ Gói Cơ Bản</li>
+                        <li class="flex items-start"><svg class="icon text-green-500 mt-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>Đóng dấu logo thương hiệu</li>
+                        <li class="flex items-start"><svg class="icon text-green-500 mt-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>Tối ưu SEO chuyên sâu & Bảo mật nâng cao</li>
+                        <li class="flex items-start"><svg class="icon text-green-500 mt-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>Module Danh sách Bác sĩ/Dịch vụ</li>
                     </ul>
-                    <div class="mt-6 py-2 px-4 bg-nasani-primary text-white font-bold rounded-lg text-center text-sm">CHỌN GÓI (Phổ Biến)</div>
+                    <div class="mt-6 py-2 px-4 bg-nasani-primary text-white font-bold rounded-lg text-center text-sm">ĐÃ CHỌN (Phổ Biến)</div>
                 </label>
 
                 <!-- Gói Đầy Đủ (Recommended) - RADIO OPTION -->
                 <label for="package_full" class="cursor-pointer bg-white p-6 rounded-xl shadow-lg border-4 border-hospital-theme has-[:checked]:border-hospital-theme has-[:checked]:ring-4 has-[:checked]:ring-cyan-300 transition duration-300 hover:shadow-xl flex flex-col">
                     <input type="radio" id="package_full" name="package-option" value="13500000" class="hidden">
                     <h3 class="text-2xl font-extrabold text-hospital-theme mb-2">3. Gói Đầy Đủ</h3>
-                    <p class="text-sm text-gray-500 mb-4">Giải pháp toàn diện, tối ưu hóa tương tác.</p>
-                    <div class="text-3xl sm:text-4xl font-bold text-gray-800 mb-4">
+                    <p class="text-sm text-gray-500 mb-4">Giải pháp toàn diện, tối ưu hóa tương tác với bệnh nhân.</p>
+                    <div class="text-4xl font-bold text-gray-800 mb-4">
                         13.500.000 <span class="text-lg font-normal">VNĐ</span>
                     </div>
                     <ul class="space-y-3 text-gray-700 flex-grow">
-                        <li class="flex items-start">Bao gồm đầy đủ Gói Đa Giao Diện</li>
-                        <li class="flex items-start">Bảo mật cơ bản (SSL, chống DDOS nhẹ)</li>
-                        <li class="flex items-start">Tích hợp Live Chat AI/Tư vấn trực tuyến</li>
-                        <li class="flex items-start">AI viết bài, thống kê từ khóa</li>
+                        <li class="flex items-start"><svg class="icon text-green-500 mt-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>Bao gồm đầy đủ Gói Đa Giao Diện</li>
+                        <li class="flex items-start"><svg class="icon text-green-500 mt-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>Bảo mật cơ bản (SSL, chống DDOS nhẹ)</li>
+                        <li class="flex items-start"><svg class="icon text-green-500 mt-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>Tích hợp Live Chat AI/Tư vấn trực tuyến</li>
+                        <li class="flex items-start"><svg class="icon text-green-500 mt-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>AI viết bài, thống kê từ khóa</li>
                     </ul>
                     <div class="mt-6 py-2 px-4 bg-hospital-theme text-white font-bold rounded-lg text-center text-sm">CHỌN GÓI (Đề Xuất)</div>
                 </label>
@@ -194,341 +372,156 @@
         </section>
 
         <!-- III. Dịch Vụ Nâng Cao & Chi Phí Đi Kèm (Add-on) -->
-        <section class="mb-12 bg-nasani-light p-4 sm:p-6 rounded-xl shadow-md">
+        <section class="mb-12 bg-nasani-light p-6 rounded-xl shadow-md">
+            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-nasani-primary pb-2 mb-6">III.A. Tùy Chọn Tính Năng Nâng Cao (Add-on)</h2>
             
-            <!-- III.A. CHỌN LĨNH VỰC KINH DOANH -->
-            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-nasani-primary pb-2 mb-6">III.A. Chọn Lĩnh Vực Của Bạn</h2>
-            
-            <!-- **Responsive:** Mặc định 2 cột, md 4 cột -->
-            <div class="relative grid grid-cols-2 md:grid-cols-4 gap-4">
-                <!-- Input Radio cho Y Tế -->
-                <input type="radio" id="industry-yte" name="industry-option" value="yte" checked>
-                <label for="industry-yte" class="industry-label p-4 rounded-lg text-center block bg-white shadow-sm hover:shadow-md">
-                    <span class="text-3xl">🩺</span>
-                    <span class="font-semibold text-gray-800 block mt-2 text-sm sm:text-base">Y Tế</span> <!-- Size chữ nhỏ hơn trên mobile -->
-                </label>
+            <div class="mb-8 p-5 bg-white rounded-lg shadow-inner border-l-4 border-hospital-theme">
+                <p class="text-sm text-gray-700 italic mb-4">Tích chọn các tính năng dưới đây để cộng thêm vào tổng chi phí thiết kế:</p>
 
-                <!-- Input Radio cho Xây Dựng -->
-                <input type="radio" id="industry-xaydung" name="industry-option" value="xaydung">
-                <label for="industry-xaydung" class="industry-label p-4 rounded-lg text-center block bg-white shadow-sm hover:shadow-md">
-                    <span class="text-3xl">🏗️</span>
-                    <span class="font-semibold text-gray-800 block mt-2 text-sm sm:text-base">Xây Dựng</span>
-                </label>
-
-                <!-- Input Radio cho Làm Đẹp -->
-                <input type="radio" id="industry-lamdep" name="industry-option" value="lamdep">
-                <label for="industry-lamdep" class="industry-label p-4 rounded-lg text-center block bg-white shadow-sm hover:shadow-md">
-                    <span class="text-3xl">💅</span>
-                    <span class="font-semibold text-gray-800 block mt-2 text-sm sm:text-base">Làm Đẹp</span>
-                </label>
-
-                <!-- Input Radio cho Thương Mại -->
-                <input type="radio" id="industry-thuongmai" name="industry-option" value="thuongmai">
-                <label for="industry-thuongmai" class="industry-label p-4 rounded-lg text-center block bg-white shadow-sm hover:shadow-md">
-                    <span class="text-3xl">🛒</span>
-                    <span class="font-semibold text-gray-800 block mt-2 text-sm sm:text-base">Thương Mại</span>
-                </label>
-            </div>
-        
-            <!-- Container chứa các gói Add-on -->
-            <div id="addon-container" class="col-span-full mt-6">
-                
-                <h3 class="text-xl sm:text-2xl font-bold text-gray-800 border-b-2 border-nasani-primary pb-2 mb-6">III.B. Tùy Chọn Tính Năng Nâng Cao (Add-on) <span class="text-sm text-gray-500">(Không áp dụng VAT)</span></h3>
-        
-                <div class="p-4 sm:p-5 bg-white rounded-lg shadow-inner border-l-4 border-hospital-theme">
-                    <p class="text-sm text-gray-700 italic mb-4">Tích chọn các tính năng dưới đây để cộng thêm vào tổng chi phí thiết kế:</p>
-
-                    <!-- **Responsive:** Addon group mặc định 1 cột, md 2 cột -->
+                <div class="grid md:grid-cols-2 gap-4 text-gray-700">
+                    <!-- Feature 1: Tra cứu Bác sĩ -->
+                    <label for="addon_doctor_lookup" class="flex justify-between items-center border-b pb-2 cursor-pointer hover:bg-gray-50 p-2 -m-2 rounded transition">
+                        <span class="flex items-center">
+                            <input type="checkbox" id="addon_doctor_lookup" name="addon-feature" value="2000000" class="w-4 h-4 text-nasani-primary border-gray-300 rounded focus:ring-nasani-primary mr-3">
+                            <svg class="w-4 h-4 mr-2 text-nasani-primary" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>Module Tra cứu Bác sĩ theo chuyên khoa
+                        </span>
+                        <span class="font-bold text-red-600">2.000.000 VNĐ</span>
+                    </label>
                     
-                    <!-- Gói Add-on cho Y TẾ -->
-                    <div id="addons-yte" class="addon-group grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700">
-                        <label for="addon_doctor_lookup" class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-2 cursor-pointer hover:bg-gray-50 p-2 -m-2 rounded transition">
-                            <span class="flex items-center mb-1 sm:mb-0">
-                                <input type="checkbox" id="addon_doctor_lookup" name="addon-feature" value="2000000" class="w-4 h-4 text-nasani-primary border-gray-300 rounded focus:ring-nasani-primary mr-3">
-                                Module Tra cứu Bác sĩ
-                            </span>
-                            <span class="font-bold text-red-600 text-sm sm:text-base ml-7 sm:ml-0">2.000.000 VNĐ</span>
-                        </label>
-                        <label for="addon_rating_system" class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-2 cursor-pointer hover:bg-gray-50 p-2 -m-2 rounded transition">
-                            <span class="flex items-center mb-1 sm:mb-0">
-                                <input type="checkbox" id="addon_rating_system" name="addon-feature" value="3500000" class="w-4 h-4 text-nasani-primary border-gray-300 rounded focus:ring-nasani-primary mr-3">
-                                Hệ thống Đánh giá Dịch vụ
-                            </span>
-                            <span class="font-bold text-red-600 text-sm sm:text-base ml-7 sm:ml-0">3.500.000 VNĐ</span>
-                        </label>
-                        <label for="addon_bmi_calculator" class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-2 cursor-pointer hover:bg-gray-50 p-2 -m-2 rounded transition">
-                            <span class="flex items-center mb-1 sm:mb-0">
-                                <input type="checkbox" id="addon_bmi_calculator" name="addon-feature" value="2500000" class="w-4 h-4 text-nasani-primary border-gray-300 rounded focus:ring-nasani-primary mr-3">
-                                Công cụ Tính BMI/Dinh dưỡng
-                            </span>
-                            <span class="font-bold text-red-600 text-sm sm:text-base ml-7 sm:ml-0">2.500.000 VNĐ</span>
-                        </label>
-                        <label for="addon_advanced_api" class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-2 cursor-pointer hover:bg-gray-50 p-2 -m-2 rounded transition">
-                            <span class="flex items-center mb-1 sm:mb-0">
-                                <input type="checkbox" id="addon_advanced_api" name="addon-feature" value="5000000" class="w-4 h-4 text-nasani-primary border-gray-300 rounded focus:ring-nasani-primary mr-3">
-                                Tích hợp API Đặt lịch (CRM/HIS)
-                            </span>
-                            <span class="font-bold text-red-600 text-sm sm:text-base ml-7 sm:ml-0">5.000.000 VNĐ</span>
-                        </label>
-                    </div>
-
-                    <!-- Gói Add-on cho XÂY DỰNG -->
-                    <div id="addons-xaydung" class="addon-group grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700">
-                         <label for="addon_project_portfolio" class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-2 cursor-pointer hover:bg-gray-50 p-2 -m-2 rounded transition">
-                            <span class="flex items-center mb-1 sm:mb-0">
-                                <input type="checkbox" id="addon_project_portfolio" name="addon-feature" value="4000000" class="w-4 h-4 text-nasani-primary border-gray-300 rounded focus:ring-nasani-primary mr-3">
-                                Module Portfolio Dự án
-                            </span>
-                            <span class="font-bold text-red-600 text-sm sm:text-base ml-7 sm:ml-0">4.000.000 VNĐ</span>
-                        </label>
-                         <label for="addon_estimation_tool" class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-2 cursor-pointer hover:bg-gray-50 p-2 -m-2 rounded transition">
-                            <span class="flex items-center mb-1 sm:mb-0">
-                                <input type="checkbox" id="addon_estimation_tool" name="addon-feature" value="6000000" class="w-4 h-4 text-nasani-primary border-gray-300 rounded focus:ring-nasani-primary mr-3">
-                                Công cụ Ước tính Chi phí
-                            </span>
-                            <span class="font-bold text-red-600 text-sm sm:text-base ml-7 sm:ml-0">6.000.000 VNĐ</span>
-                        </label>
-                    </div>
+                    <!-- Feature 2: Đánh giá & Phản hồi -->
+                    <label for="addon_rating_system" class="flex justify-between items-center border-b pb-2 cursor-pointer hover:bg-gray-50 p-2 -m-2 rounded transition">
+                        <span class="flex items-center">
+                            <input type="checkbox" id="addon_rating_system" name="addon-feature" value="3500000" class="w-4 h-4 text-nasani-primary border-gray-300 rounded focus:ring-nasani-primary mr-3">
+                            <svg class="w-4 h-4 mr-2 text-nasani-primary" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>Hệ thống Đánh giá & Phản hồi Dịch vụ
+                        </span>
+                        <span class="font-bold text-red-600">3.500.000 VNĐ</span>
+                    </label>
                     
-                    <!-- Gói Add-on cho LÀM ĐẸP -->
-                    <div id="addons-lamdep" class="addon-group grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700">
-                         <label for="addon_booking_spa" class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-2 cursor-pointer hover:bg-gray-50 p-2 -m-2 rounded transition">
-                            <span class="flex items-center mb-1 sm:mb-0">
-                                <input type="checkbox" id="addon_booking_spa" name="addon-feature" value="4500000" class="w-4 h-4 text-nasani-primary border-gray-300 rounded focus:ring-nasani-primary mr-3">
-                                Hệ thống Đặt lịch Spa
-                            </span>
-                            <span class="font-bold text-red-600 text-sm sm:text-base ml-7 sm:ml-0">4.500.000 VNĐ</span>
-                        </label>
-                         <label for="addon_gallery_before_after" class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-2 cursor-pointer hover:bg-gray-50 p-2 -m-2 rounded transition">
-                            <span class="flex items-center mb-1 sm:mb-0">
-                                <input type="checkbox" id="addon_gallery_before_after" name="addon-feature" value="3000000" class="w-4 h-4 text-nasani-primary border-gray-300 rounded focus:ring-nasani-primary mr-3">
-                                Thư viện ảnh Trước & Sau
-                            </span>
-                            <span class="font-bold text-red-600 text-sm sm:text-base ml-7 sm:ml-0">3.000.000 VNĐ</span>
-                        </label>
-                    </div>
+                    <!-- Feature 3: Tính toán BMI/Dinh dưỡng -->
+                    <label for="addon_bmi_calculator" class="flex justify-between items-center border-b pb-2 cursor-pointer hover:bg-gray-50 p-2 -m-2 rounded transition">
+                        <span class="flex items-center">
+                            <input type="checkbox" id="addon_bmi_calculator" name="addon-feature" value="2500000" class="w-4 h-4 text-nasani-primary border-gray-300 rounded focus:ring-nasani-primary mr-3">
+                            <svg class="w-4 h-4 mr-2 text-nasani-primary" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm0 15c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zm0-10c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z"/></svg>Công cụ Tính toán BMI/Dinh dưỡng cơ bản
+                        </span>
+                        <span class="font-bold text-red-600">2.500.000 VNĐ</span>
+                    </label>
                     
-                    <!-- Gói Add-on cho THƯƠNG MẠI -->
-                    <div id="addons-thuongmai" class="addon-group grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700">
-                         <label for="addon_ecommerce" class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-2 cursor-pointer hover:bg-gray-50 p-2 -m-2 rounded transition">
-                            <span class="flex items-center mb-1 sm:mb-0">
-                                <input type="checkbox" id="addon_ecommerce" name="addon-feature" value="8000000" class="w-4 h-4 text-nasani-primary border-gray-300 rounded focus:ring-nasani-primary mr-3">
-                                Giỏ hàng & Thanh toán
-                            </span>
-                            <span class="font-bold text-red-600 text-sm sm:text-base ml-7 sm:ml-0">8.000.000 VNĐ</span>
-                        </label>
-                         <label for="addon_inventory_management" class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-2 cursor-pointer hover:bg-gray-50 p-2 -m-2 rounded transition">
-                            <span class="flex items-center mb-1 sm:mb-0">
-                                <input type="checkbox" id="addon_inventory_management" name="addon-feature" value="5000000" class="w-4 h-4 text-nasani-primary border-gray-300 rounded focus:ring-nasani-primary mr-3">
-                                Quản lý Tồn kho cơ bản
-                            </span>
-                            <span class="font-bold text-red-600 text-sm sm:text-base ml-7 sm:ml-0">5.000.000 VNĐ</span>
-                        </label>
-                    </div>
-                    
+                    <!-- Feature 4: Tích hợp API Đặt lịch -->
+                    <label for="addon_advanced_api" class="flex justify-between items-center border-b pb-2 cursor-pointer hover:bg-gray-50 p-2 -m-2 rounded transition">
+                        <span class="flex items-center">
+                            <input type="checkbox" id="addon_advanced_api" name="addon-feature" value="5000000" class="w-4 h-4 text-nasani-primary border-gray-300 rounded focus:ring-nasani-primary mr-3">
+                            <svg class="w-4 h-4 mr-2 text-nasani-primary" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15H9v-2h2v2zm0-4H9v-2h2v2zm4 4h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V7h2v2z"/></svg>Tích hợp API Đặt lịch nâng cao (CRM/HIS)
+                        </span>
+                        <span class="font-bold text-red-600">5.000.000 VNĐ</span>
+                    </label>
                 </div>
             </div>
-            <!-- III.C. Chi Phí Tên miền & Hosting -->
-            <h3 class="text-xl sm:text-2xl font-bold text-gray-800 border-b-2 border-nasani-primary pb-2 mb-6 mt-10">III.C. Chọn Gói Hosting & Tên miền (Tính theo năm)</h3>
+            
+            <!-- III.B. Chi Phí Tên miền & Hosting - Tích Chọn Hosting -->
+            <h3 class="text-2xl font-bold text-gray-800 border-b-2 border-nasani-primary pb-2 mb-6 mt-10">III.B. Chọn Gói Hosting (Tính theo năm)</h3>
 
-            <div class="p-4 sm:p-5 bg-white rounded-lg shadow-inner">
-                <p class="text-base sm:text-lg font-semibold text-gray-800 mb-4">1. Chọn Gói Hosting (Giá Đã VAT - Click lần 2 để bỏ chọn)</p>
+            <div class="p-5 bg-white rounded-lg shadow-inner">
+                <p class="text-sm text-gray-500 italic mb-4">
+                     *Tên miền (.COM) trị giá 366.120 VNĐ/Năm sẽ được **MIỄN PHÍ** 1 năm nếu chọn Gói Đầy Đủ.
+                </p>
                 
-                <!-- **Responsive:** Mặc định 2 cột, md 4 cột -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center mb-4">
+                <div id="domain-note" class="hidden p-3 mb-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 font-semibold text-sm rounded transition duration-500">
+                    🎉 Đã chọn Gói Đầy Đủ: Tên miền .COM đã được **MIỄN PHÍ** 1 năm!
+                </div>
+                
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                    
+                    <!-- Hosting 5GB -->
                     <label for="hosting_5gb" class="cursor-pointer border-2 border-indigo-500 has-[:checked]:bg-indigo-50 has-[:checked]:ring-4 has-[:checked]:ring-indigo-200 rounded-lg p-3 transition duration-150">
-                        <input type="radio" id="hosting_5gb" name="hosting-option" value="4872000" class="hidden">
-                        <p class="text-lg sm:text-xl font-bold text-indigo-700">5GB</p>
-                        <p class="text-xs sm:text-sm text-gray-500">4.872.000 <span class="font-bold">VNĐ</span></p>
-                        <p class="text-xs text-green-500 font-semibold">Giá CHƯA VAT</p>
-                        <p class="text-xs text-red-500 font-semibold">ĐÃ VAT: 5.261.760 VNĐ</p>
+                        <input type="radio" id="hosting_5gb" name="hosting-option" value="4872000" class="hidden" checked>
+                        <p class="text-xl font-bold text-indigo-700">5GB (Đề xuất)</p>
+                        <p class="text-sm text-gray-500">4.872.000 VNĐ/Năm</p>
+                        <p class="text-xs text-green-500 font-semibold">Băng thông KGH</p>
                     </label>
+                    
+                    <!-- Hosting 7GB -->
                     <label for="hosting_7gb" class="cursor-pointer border-2 border-purple-500 has-[:checked]:bg-purple-50 has-[:checked]:ring-4 has-[:checked]:ring-purple-200 rounded-lg p-3 transition duration-150">
                         <input type="radio" id="hosting_7gb" name="hosting-option" value="6000000" class="hidden">
-                        <p class="text-lg sm:text-xl font-bold text-purple-700">7GB</p>
-                        <p class="text-xs sm:text-sm text-gray-500">6.000.000 <span class="font-bold">VNĐ</span></p>
-                         <p class="text-xs text-green-500 font-semibold">Giá CHƯA VAT</p>
-                         <p class="text-xs text-red-500 font-semibold">ĐÃ VAT: 6.480.000 VNĐ</p>
+                        <p class="text-xl font-bold text-purple-700">7GB</p>
+                        <p class="text-sm text-gray-500">6.000.000 VNĐ/Năm</p>
+                         <p class="text-xs text-green-500 font-semibold">Băng thông KGH</p>
                     </label>
+                    
+                    <!-- Hosting 10GB -->
                     <label for="hosting_10gb" class="cursor-pointer border-2 border-red-500 has-[:checked]:bg-red-50 has-[:checked]:ring-4 has-[:checked]:ring-red-200 rounded-lg p-3 transition duration-150">
                         <input type="radio" id="hosting_10gb" name="hosting-option" value="7200000" class="hidden">
-                        <p class="text-lg sm:text-xl font-bold text-red-700">10GB</p>
-                        <p class="text-xs sm:text-sm text-gray-500">7.200.000 <span class="font-bold">VNĐ</span></p>
-                        <p class="text-xs text-green-500 font-semibold">Giá CHƯA VAT</p>
-                        <p class="text-xs text-red-500 font-semibold">ĐÃ VAT: 7.776.000 VNĐ</p>
+                        <p class="text-xl font-bold text-red-700">10GB</p>
+                        <p class="text-sm text-gray-500">7.200.000 VNĐ/Năm</p>
+                        <p class="text-xs text-green-500 font-semibold">Băng thông KGH</p>
                     </label>
-                    <label for="hosting_20gb_ca_nhan" class="cursor-pointer border-2 border-green-500 has-[:checked]:bg-green-50 has-[:checked]:ring-4 has-[:checked]:ring-green-200 rounded-lg p-3 transition duration-150">
-                        <input type="radio" id="hosting_20gb_ca_nhan" name="hosting-option" value="12000000" class="hidden">
-                        <p class="text-lg sm:text-xl font-bold text-green-700">20GB</p>
-                        <p class="text-xs sm:text-sm text-gray-500">12.000.000 <span class="font-bold">VNĐ</span></p>
-                        <p class="text-xs text-green-500 font-semibold">Giá CHƯA VAT</p>
-                        <p class="text-xs text-red-500 font-semibold">ĐÃ VAT: 12.960.000 VNĐ</p>
-                    </label>
-                </div>
-                
-                <!-- Gói Hosting Mở rộng -->
-                <div id="extra-hosting-packages" class="hidden-hosting-packages">
-                    <!-- **Responsive:** Mặc định 2 cột, md 4 cột -->
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center mb-4 border-t pt-4 border-gray-200">
-                        <label for="hosting_16gb" class="cursor-pointer border-2 border-gray-300 has-[:checked]:bg-gray-100 has-[:checked]:ring-2 has-[:checked]:ring-gray-400 rounded-lg p-3 transition duration-150">
-                            <input type="radio" id="hosting_16gb" name="hosting-option" value="10560000" class="hidden">
-                            <p class="text-lg sm:text-xl font-bold text-gray-700">16GB</p>
-                            <p class="text-xs sm:text-sm text-gray-500">10.560.000 <span class="font-bold">VNĐ</span></p>
-                            <p class="text-xs text-green-500 font-semibold">Giá CHƯA VAT</p>
-                            <p class="text-xs text-red-500 font-semibold">ĐÃ VAT: 11.404.800 VNĐ</p>
-                        </label>
-                       
-                        <label for="hosting_25gb" class="cursor-pointer border-2 border-gray-300 has-[:checked]:bg-gray-100 has-[:checked]:ring-2 has-[:checked]:ring-gray-400 rounded-lg p-3 transition duration-150">
-                            <input type="radio" id="hosting_25gb" name="hosting-option" value="14400000" class="hidden">
-                            <p class="text-lg sm:text-xl font-bold text-gray-700">25GB</p>
-                            <p class="text-xs sm:text-sm text-gray-500">14.400.000 <span class="font-bold">VNĐ</span></p>
-                            <p class="text-xs text-green-500 font-semibold">Giá CHƯA VAT</p>
-                            <p class="text-xs text-red-500 font-semibold">ĐÃ VAT: 15.552.000 VNĐ</p>
-                        </label>
-                        <label for="hosting_30gb" class="cursor-pointer border-2 border-gray-300 has-[:checked]:bg-gray-100 has-[:checked]:ring-2 has-[:checked]:ring-gray-400 rounded-lg p-3 transition duration-150">
-                            <input type="radio" id="hosting_30gb" name="hosting-option" value="16080000" class="hidden">
-                            <p class="text-lg sm:text-xl font-bold text-gray-700">30GB</p>
-                            <p class="text-xs sm:text-sm text-gray-500">16.080.000 <span class="font-bold">VNĐ</span></p>
-                            <p class="text-xs text-green-500 font-semibold">Giá CHƯA VAT</p>
-                            <p class="text-xs text-red-500 font-semibold">ĐÃ VAT: 17.366.400 VNĐ</p>
-                        </label>
-                        <label for="hosting_40gb_dn" class="cursor-pointer border-2 border-gray-300 has-[:checked]:bg-gray-100 has-[:checked]:ring-2 has-[:checked]:ring-gray-400 rounded-lg p-3 transition duration-150">
-                            <input type="radio" id="hosting_40gb_dn" name="hosting-option" value="20080000" class="hidden">
-                            <p class="text-lg sm:text-xl font-bold text-gray-700">40GB (DN)</p>
-                            <p class="text-xs sm:text-sm text-gray-500">20.080.000 <span class="font-bold">VNĐ</span></p>
-                            <p class="text-xs text-green-500 font-semibold">Giá CHƯA VAT</p>
-                            <p class="text-xs text-red-500 font-semibold">ĐÃ VAT: 21.686.400 VNĐ</p>
-                        </label>
-                        <label for="hosting_50gb_dn" class="cursor-pointer border-2 border-gray-300 has-[:checked]:bg-gray-100 has-[:checked]:ring-2 has-[:checked]:ring-gray-400 rounded-lg p-3 transition duration-150">
-                            <input type="radio" id="hosting_50gb_dn" name="hosting-option" value="24000000" class="hidden">
-                            <p class="text-lg sm:text-xl font-bold text-gray-700">50GB (DN)</p>
-                            <p class="text-xs sm:text-sm text-gray-500">24.000.000 <span class="font-bold">VNĐ</span></p>
-                            <p class="text-xs text-green-500 font-semibold">Giá CHƯA VAT</p>
-                            <p class="text-xs text-red-500 font-semibold">ĐÃ VAT: 25.920.000 VNĐ</p>
-                        </label>
-						 <label for="hosting_70gb_dn" class="cursor-pointer border-2 border-gray-300 has-[:checked]:bg-gray-100 has-[:checked]:ring-2 has-[:checked]:ring-gray-400 rounded-lg p-3 transition duration-150">
-                            <input type="radio" id="hosting_70gb_dn" name="hosting-option" value="32040000" class="hidden">
-                            <p class="text-lg sm:text-xl font-bold text-gray-700">70GB (DN)</p>
-                            <p class="text-xs sm:text-sm text-gray-500">32.040.000 <span class="font-bold">VNĐ</span></p>
-                            <p class="text-xs text-green-500 font-semibold">Giá CHƯA VAT</p>
-                            <p class="text-xs text-red-500 font-semibold">ĐÃ VAT: 34.603.200 VNĐ</p>
-                        </label>
-                        <label for="hosting_100gb_sieu_dn" class="cursor-pointer border-2 border-gray-300 has-[:checked]:bg-gray-100 has-[:checked]:ring-2 has-[:checked]:ring-gray-400 rounded-lg p-3 transition duration-150">
-                            <input type="radio" id="hosting_100gb_sieu_dn" name="hosting-option" value="43200000" class="hidden">
-                            <p class="text-lg sm:text-xl font-bold text-gray-700">100GB (Siêu DN)</p>
-                            <p class="text-xs sm:text-sm text-gray-500">43.200.000 <span class="font-bold">VNĐ</span></p>
-                            <p class="text-xs text-green-500 font-semibold">Giá CHƯA VAT</p>
-                            <p class="text-xs text-red-500 font-semibold">ĐÃ VAT: 46.656.000 VNĐ</p>
-                        </label>
-                        <label for="hosting_200gb_sieu_dn" class="cursor-pointer border-2 border-gray-300 has-[:checked]:bg-gray-100 has-[:checked]:ring-2 has-[:checked]:ring-gray-400 rounded-lg p-3 transition duration-150">
-                            <input type="radio" id="hosting_200gb_sieu_dn" name="hosting-option" value="72000000" class="hidden">
-                            <p class="text-lg sm:text-xl font-bold text-gray-700">200GB (Siêu DN)</p>
-                            <p class="text-xs sm:text-sm text-gray-500">72.000.000 <span class="font-bold">VNĐ</span></p>
-                            <p class="text-xs text-green-500 font-semibold">Giá CHƯA VAT</p>
-                            <p class="text-xs text-red-500 font-semibold">ĐÃ VAT: 77.760.000 VNĐ</p>
-                        </label>
+                     
+                    <!-- Tên miền (Chỉ hiển thị giá) -->
+                    <div class="border-2 border-gray-300 rounded-lg p-3 bg-gray-100">
+                        <p class="text-xl font-bold text-gray-700">Tên miền (.COM)</p>
+                        <p class="text-sm text-gray-500">366.120 VNĐ/Năm</p>
+                        <p class="text-xs text-red-500 font-semibold mt-2">Tính kèm Hosting</p>
                     </div>
-                </div>
 
-                <!-- Nút Xem thêm/Thu gọn -->
-                <div class="text-center pt-4 border-t border-gray-200 mt-4">
-                    <button id="toggle-extra-packages-btn" class="py-2 px-6 bg-gray-500 text-white font-semibold rounded-full hover:bg-gray-600 transition duration-300">
-                        Xem thêm các gói Hosting khác
-                    </button>
-                </div>
-
-                <p class="text-base sm:text-lg font-semibold text-gray-800 mb-4 border-t pt-4 mt-8">2. Chọn Tên miền (Giá Đã VAT - Click lần 2 để bỏ chọn)</p>
-                
-                <!-- **Responsive:** Mặc định 2 cột, md 3 cột (cho đủ chỗ) -->
-                   <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
-                    <label for="domain_com" class="cursor-pointer border-2 border-gray-300 has-[:checked]:bg-gray-100 has-[:checked]:ring-2 has-[:checked]:ring-gray-400 rounded-lg p-3 transition duration-150">
-                        <input type="radio" id="domain_com" name="domain-option" value="366120" class="hidden">
-                        <p class="text-lg sm:text-xl font-bold text-gray-700">.COM</p>
-                        <p class="text-xs sm:text-sm text-gray-500">366.120 <span class="font-bold">VNĐ</span></p>
-                         <p class="text-xs text-red-500 font-semibold">Giá ĐÃ VAT</p>
-                    </label>
-                    <label for="domain_vn" class="cursor-pointer border-2 border-gray-300 has-[:checked]:bg-gray-100 has-[:checked]:ring-2 has-[:checked]:ring-gray-400 rounded-lg p-3 transition duration-150">
-                        <input type="radio" id="domain_vn" name="domain-option" value="820000" class="hidden">
-                        <p class="text-lg sm:text-xl font-bold text-gray-700">.VN</p>
-                        <p class="text-xs sm:text-sm text-gray-500">820.000 <span class="font-bold">VNĐ</span></p>
-                         <p class="text-xs text-red-500 font-semibold">Giá ĐÃ VAT</p>
-                    </label>
-                    <label for="domain_com_vn" class="cursor-pointer border-2 border-gray-300 has-[:checked]:bg-gray-100 has-[:checked]:ring-2 has-[:checked]:ring-gray-400 rounded-lg p-3 transition duration-150">
-                        <input type="radio" id="domain_com_vn" name="domain-option" value="691000" class="hidden">
-                        <p class="text-lg sm:text-xl font-bold text-gray-700">.COM.VN</p>
-                        <p class="text-xs sm:text-sm text-gray-500">691.000 <span class="font-bold">VNĐ</span></p>
-                        <p class="text-xs text-red-500 font-semibold">Giá ĐÃ VAT</p>
-                    </label>
                 </div>
             </div>
             
             
         </section>
         
-        <!-- Các mục IV & V -->
+        <!-- Các mục IV & V (Quy trình & Bảo hành) - Giữ nguyên nội dung -->
         <section class="mb-12">
             <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-nasani-primary pb-2 mb-6">IV. Quy Trình Triển Khai & Thanh Toán</h2>
 
-            <!-- Quy trình Triển khai -->
-            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg mb-8">
-                <h3 class="text-lg sm:text-xl font-semibold text-nasani-primary mb-4">1. Quy trình Triển khai (4 - 6 tuần)</h3>
+            <!-- Quy trình Triển khai (Timeline) -->
+            <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
+                <h3 class="text-xl font-semibold text-nasani-primary mb-4">1. Quy trình Triển khai (4 - 6 tuần)</h3>
                 <ol class="relative border-l border-gray-200 ml-3">           
                     <li class="mb-4 ml-6">
-                        <span class="absolute flex items-center justify-center w-6 h-6 bg-nasani-light rounded-full -left-3 ring-8 ring-white text-xs font-bold">1</span>
-                        <h4 class="flex items-center mb-1 text-base sm:text-lg font-semibold text-gray-900">Thu thập Yêu cầu & Ký HĐ <span class="bg-nasani-primary text-white text-xs font-medium px-2 py-0.5 rounded ml-2">1-2 Ngày</span></h4>
-                        <p class="text-sm sm:text-base font-normal text-gray-600">Thống nhất module, ký hợp đồng.</p>
+                        <span class="absolute flex items-center justify-center w-6 h-6 bg-nasani-light rounded-full -left-3 ring-8 ring-white">1</span>
+                        <h4 class="flex items-center mb-1 text-lg font-semibold text-gray-900">Thu thập Yêu cầu & Ký kết Hợp đồng <span class="bg-nasani-primary text-white text-xs font-medium mr-2 px-2.5 py-0.5 rounded ml-3">1-2 Ngày</span></h4>
+                        <p class="text-base font-normal text-gray-600">Thống nhất module, tính năng, và ký kết hợp đồng chính thức.</p>
                     </li>
                     <li class="mb-4 ml-6">
-                        <span class="absolute flex items-center justify-center w-6 h-6 bg-nasani-light rounded-full -left-3 ring-8 ring-white text-xs font-bold">2</span>
-                        <h4 class="mb-1 text-base sm:text-lg font-semibold text-gray-900">Thiết kế Giao diện <span class="bg-gray-100 text-gray-800 text-xs font-medium px-2 py-0.5 rounded ml-2">2-5 Ngày</span></h4>
-                        <p class="text-sm sm:text-base font-normal text-gray-600">Thiết kế UI/UX, gửi demo.</p>
+                        <span class="absolute flex items-center justify-center w-6 h-6 bg-nasani-light rounded-full -left-3 ring-8 ring-white">2</span>
+                        <h4 class="mb-1 text-lg font-semibold text-gray-900">Thiết kế Giao diện (Layout Demo) <span class="bg-gray-100 text-gray-800 text-xs font-medium mr-2 px-2.5 py-0.5 rounded ml-3">2-5 Ngày</span></h4>
+                        <p class="text-base font-normal text-gray-600">Thiết kế UI/UX cho Desktop & Mobile, gửi demo và chỉnh sửa theo phản hồi.</p>
                     </li>
                     <li class="mb-4 ml-6">
-                        <span class="absolute flex items-center justify-center w-6 h-6 bg-nasani-light rounded-full -left-3 ring-8 ring-white text-xs font-bold">3</span>
-                        <h4 class="mb-1 text-base sm:text-lg font-semibold text-gray-900">Lập trình & Tích hợp <span class="bg-gray-100 text-gray-800 text-xs font-medium px-2 py-0.5 rounded ml-2">2-4 Tuần</span></h4>
-                        <p class="text-sm sm:text-base font-normal text-gray-600">Lập trình Back-end, nhập liệu.</p>
+                        <span class="absolute flex items-center justify-center w-6 h-6 bg-nasani-light rounded-full -left-3 ring-8 ring-white">3</span>
+                        <h4 class="mb-1 text-lg font-semibold text-gray-900">Lập trình Chức năng & Tích hợp Dữ liệu <span class="bg-gray-100 text-gray-800 text-xs font-medium mr-2 px-2.5 py-0.5 rounded ml-3">2-4 Tuần</span></h4>
+                        <p class="text-base font-normal text-gray-600">Lập trình Back-end (CMS), tích hợp các module, và nhập liệu cơ bản.</p>
                     </li>
                     <li class="mb-4 ml-6">
-                        <span class="absolute flex items-center justify-center w-6 h-6 bg-nasani-light rounded-full -left-3 ring-8 ring-white text-xs font-bold">4</span>
-                        <h4 class="mb-1 text-base sm:text-lg font-semibold text-gray-900">Kiểm thử & Đào tạo <span class="bg-gray-100 text-gray-800 text-xs font-medium px-2 py-0.5 rounded ml-2">2-3 Ngày</span></h4>
-                        <p class="text-sm sm:text-base font-normal text-gray-600">Kiểm tra, đào tạo quản trị.</p>
+                        <span class="absolute flex items-center justify-center w-6 h-6 bg-nasani-light rounded-full -left-3 ring-8 ring-white">4</span>
+                        <h4 class="mb-1 text-lg font-semibold text-gray-900">Kiểm thử (Testing), Đào tạo & Nghiệm thu <span class="bg-gray-100 text-gray-800 text-xs font-medium mr-2 px-2.5 py-0.5 rounded ml-3">2-3 Ngày</span></h4>
+                        <p class="text-base font-normal text-gray-600">Khách hàng kiểm tra, Nasani đào tạo quản trị và chuẩn bị bàn giao.</p>
                     </li>
-                    <li class="ml-6"> <!-- Bỏ mb-4 ở mục cuối -->
-                        <span class="absolute flex items-center justify-center w-6 h-6 bg-nasani-primary text-white rounded-full -left-3 ring-8 ring-white text-xs font-bold">5</span>
-                        <h4 class="mb-1 text-base sm:text-lg font-semibold text-gray-900">Bàn giao Chính thức</h4>
-                        <p class="text-sm sm:text-base font-normal text-gray-600">Hoàn tất thanh toán, bàn giao.</p>
+                    <li class="mb-4 ml-6">
+                        <span class="absolute flex items-center justify-center w-6 h-6 bg-nasani-primary text-white rounded-full -left-3 ring-8 ring-white">5</span>
+                        <h4 class="mb-1 text-lg font-semibold text-gray-900">Bàn giao Chính thức</h4>
+                        <p class="text-base font-normal text-gray-600">Hoàn tất thanh toán, bàn giao mã nguồn và tài khoản quản trị.</p>
                     </li>
                 </ol>
             </div>
             
             <!-- Quy trình Thanh toán -->
-            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border-l-4 border-hospital-theme">
-                <h3 class="text-lg sm:text-xl font-semibold text-hospital-theme mb-4">2. Quy trình Thanh toán</h3>
-                <!-- **Responsive:** Mặc định cột, sm hàng -->
-                <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 text-center">
-                    <div class="flex-1 p-3 sm:p-4 border rounded-lg bg-nasani-light border-nasani-primary">
-                        <p class="text-base sm:text-lg font-bold text-nasani-primary">Đợt 1 (Ký HĐ)</p>
-                        <p class="text-xl sm:text-2xl font-extrabold text-red-600 mt-1">50%</p>
-                        <p class="text-xs sm:text-sm text-gray-600 mt-1">Chi phí Thiết kế</p>
+            <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-hospital-theme">
+                <h3 class="text-xl font-semibold text-hospital-theme mb-4">2. Quy trình Thanh toán</h3>
+                <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-8 text-center">
+                    <div class="flex-1 p-4 border rounded-lg bg-gray-50">
+                        <p class="text-2xl font-bold text-nasani-primary">Đợt 1 (Ký Hợp đồng)</p>
+                        <p class="text-4xl font-extrabold text-red-600 mt-2">50%</p>
+                        <p class="text-sm text-gray-500 mt-1">Tổng giá trị hợp đồng</p>
                     </div>
                     <div class="flex items-center justify-center">
-                         <svg class="w-6 h-6 sm:w-8 sm:h-8 text-gray-400 transform rotate-90 sm:rotate-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l-1.41 1.41L15.17 11H4v2h11.17l-4.58 4.59L12 20l8-8z"/></svg>
+                          <svg class="w-8 h-8 text-gray-400 hidden sm:block" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l-1.41 1.41L15.17 11H4v2h11.17l-4.58 4.59L12 20l8-8z"/></svg>
                     </div>
-                    <div class="flex-1 p-3 sm:p-4 border rounded-lg bg-nasani-light border-hospital-theme">
-                        <p class="text-base sm:text-lg font-bold text-hospital-theme">Đợt 2 (Hạ tầng)</p>
-                        <p class="text-xl sm:text-2xl font-extrabold text-red-600 mt-1">100%</p>
-                        <p class="text-xs sm:text-sm text-gray-600 mt-1">Hosting & Domain</p>
-                    </div>
-                    <div class="flex items-center justify-center">
-                         <svg class="w-6 h-6 sm:w-8 sm:h-8 text-gray-400 transform rotate-90 sm:rotate-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l-1.41 1.41L15.17 11H4v2h11.17l-4.58 4.59L12 20l8-8z"/></svg>
-                    </div>
-                    <div class="flex-1 p-3 sm:p-4 border rounded-lg bg-nasani-light border-nasani-primary">
-                        <p class="text-base sm:text-lg font-bold text-nasani-primary">Đợt 3 (Bàn giao)</p>
-                        <p class="text-xl sm:text-2xl font-extrabold text-red-600 mt-1">50%</p>
-                        <p class="text-xs sm:text-sm text-gray-600 mt-1">Thiết kế còn lại</p>
+                    <div class="flex-1 p-4 border rounded-lg bg-gray-50">
+                        <p class="text-2xl font-bold text-nasani-primary">Đợt 2 (Nghiệm thu & Bàn giao)</p>
+                        <p class="text-4xl font-extrabold text-red-600 mt-2">50%</p>
+                        <p class="text-sm text-gray-500 mt-1">Còn lại, sau khi website hoạt động ổn định</p>
                     </div>
                 </div>
-                <p class="text-xs sm:text-sm text-gray-500 italic mt-4 text-center">Lưu ý: Chi phí thiết kế (đã giảm giá) chia 2 đợt. Hạ tầng thanh toán 100% ở Đợt 2.</p>
             </div>
         </section>
 
@@ -536,310 +529,98 @@
         <section class="mb-12">
             <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-nasani-primary pb-2 mb-6">V. Dịch Vụ Chăm Sóc & Bảo Trì Hậu Mãi</h2>
 
-             <!-- **Responsive:** Mặc định 1 cột, md 3 cột -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+            <div class="grid md:grid-cols-3 gap-6 text-center">
+                
+                <!-- Bảo hành -->
                 <div class="bg-white p-6 rounded-xl shadow-md transition duration-300 hover:shadow-lg">
-                    <svg class="w-10 h-10 mx-auto mb-3 text-nasani-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                    </svg>
-                    <h3 class="text-lg sm:text-xl font-semibold text-gray-800 mb-2">Bảo Hành Trọn Đời</h3>
-                    <p class="text-sm sm:text-base text-gray-600">Bảo hành vĩnh viễn lỗi kỹ thuật từ Nasani.</p>
+                    <svg class="icon w-10 h-10 mx-auto mb-3 text-red-600" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-2">Bảo Hành Trọn Đời</h3>
+                    <p class="text-gray-600 text-sm">Bảo hành vĩnh viễn lỗi kỹ thuật, lỗi code phát sinh từ quá trình lập trình của Nasani.</p>
                 </div>
+
+                <!-- Hỗ trợ Kỹ thuật -->
                 <div class="bg-white p-6 rounded-xl shadow-md transition duration-300 hover:shadow-lg">
-                    <svg class="w-10 h-10 mx-auto mb-3 text-hospital-theme" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                    </svg>
-                    <h3 class="text-lg sm:text-xl font-semibold text-gray-800 mb-2">Hỗ Trợ Nhanh Chóng 24/7</h3>
-                    <p class="text-sm sm:text-base text-gray-600">Đảm bảo hoạt động ổn định, xử lý sự cố trong 24h.</p>
+                    <svg class="icon w-10 h-10 mx-auto mb-3 text-nasani-primary" viewBox="0 0 24 24" fill="currentColor"><path d="M20 17c-1.39 0-2.73-.3-4.01-.9l-3.2 3.2c-1.12-.34-2.19-.88-3.2-1.6l3.2-3.2c-.67-1.28-.9-2.73-.9-4.01 0-.07 0-.14.01-.2H4V8h5.01c.01-.06.01-.13.01-.2 0-3.31 2.69-6 6-6s6 2.69 6 6-2.69 6-6 6zm0-8h-2v-1h2v1zm-4-4c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z"/></svg>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-2">Hỗ Trợ Nhanh Chóng 24/7</h3>
+                    <p class="text-gray-600 text-sm">Đảm bảo website luôn hoạt động ổn định. Xử lý sự cố kỹ thuật cấp thiết trong vòng 24 giờ.</p>
                 </div>
+
+                <!-- Đào tạo -->
                 <div class="bg-white p-6 rounded-xl shadow-md transition duration-300 hover:shadow-lg">
-                    <svg class="w-10 h-10 mx-auto mb-3 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18c-2.305 0-4.408.867-6 2.292m0-14.25v14.25" />
-                    </svg>
-                    <h3 class="text-lg sm:text-xl font-semibold text-gray-800 mb-2">Đào Tạo Quản Trị Hệ Thống</h3>
-                    <p class="text-sm sm:text-base text-gray-600">Đào tạo trực tiếp/trực tuyến quản lý nội dung.</p>
+                    <svg class="icon w-10 h-10 mx-auto mb-3 text-hospital-theme" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-2">Đào Tạo Quản Trị Hệ Thống</h3>
+                    <p class="text-gray-600 text-sm">Đào tạo trực tiếp/trực tuyến cho nhân sự Bệnh viện quản lý nội dung và hệ thống đặt lịch.</p>
                 </div>
+
             </div>
         </section>
         
         <!-- Footer -->
         <footer class="text-center p-4 text-gray-500 text-sm">
-            &copy; 2025 Báo giá được thiết kế và cung cấp bởi Nasani.vn - Developed by Cao Nhất Phi.
+            &copy; 2025 Báo giá được thiết kế và cung cấp bởi Nasani.vn.
         </footer>
     </div>
     
-    <!-- KẾT QUẢ TÍNH TỔNG CHI PHÍ CỐ ĐỊNH (STICKY) -->
-    <!-- **Responsive:** Cấu trúc thay đổi đáng kể -->
-    <section class="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white border-t-4 border-nasani-primary shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.1)]">
-        <div class="max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-4">
+    <!-- KẾT QUẢ TÍNH TỔNG CHI PHÍ CỐ ĐỊNH (STICKY) - ĐÃ TỐI ƯU -->
+    <section id="payment-drawer" class="fixed bottom-0 left-0 right-0 z-50 bg-white border-t-4 border-nasani-primary shadow-2xl 
+                                     transition-transform duration-300 ease-in-out
+                                     lg:transform-none">
+        
+        <!-- Drawer Handle (Chỉ hiển thị trên Mobile, class 'lg:hidden') -->
+        <div id="drawer-handle" class="lg:hidden p-4 cursor-pointer flex justify-between items-center border-b border-gray-200">
+            <!-- Tổng tiền (phiên bản mobile) -->
+            <div class="flex flex-col">
+                <span class="text-xs text-gray-600">TỔNG TẠM TÍNH</span>
+                <span class="text-xl font-extrabold text-red-700" id="total-cost-display-mobile">0 VNĐ</span>
+            </div>
+            <!-- Nút bấm trượt lên/xuống -->
+            <button class="flex items-center text-nasani-primary font-semibold">
+                <span id="drawer-handle-text" class="mr-1">Xem chi tiết</span>
+                <svg id="drawer-icon" class="w-5 h-5 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Nội dung Ngăn kéo (Nội dung footer gốc) -->
+        <div id="drawer-content" class="max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-4 p-4 sm:p-6">
             
-            <!-- BLOCK 1: TẤT CẢ CHI PHÍ -->
-            <div class="w-full lg:w-3/5">
-                <!-- **Responsive:** 2 cột trên mobile, 3 cột trên sm, 5 cột trên lg -->
-                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-3 gap-y-2 w-full text-center sm:text-left">
-                    <!-- Mục chi phí (ví dụ Gói Thiết Kế) -->
-                    <div class="border-b lg:border-b-0 lg:border-r pb-1 lg:pb-0 lg:pr-2">
-                        <p class="text-xs sm:text-sm text-gray-600">Gói TK:</p> <!-- Rút gọn chữ -->
-                        <p class="font-bold text-nasani-primary text-sm sm:text-base" id="package-price-display">0 đ</p> <!-- Bỏ VNĐ -->
-                    </div>
-                    <!-- Tính Năng Add-on -->
-                    <div class="border-b lg:border-b-0 lg:border-r pb-1 lg:pb-0 lg:pr-2">
-                        <p class="text-xs sm:text-sm text-gray-600">Add-on:</p>
-                        <p class="font-bold text-red-600 text-sm sm:text-base" id="addon-price-display">0 đ</p>
-                    </div>
-                    <!-- Giảm giá -->
-                    <div class="border-b lg:border-b-0 lg:border-r pb-1 lg:pb-0 lg:pr-2">
-                        <p class="text-xs sm:text-sm text-gray-600">Ưu đãi:</p>
-                        <p class="font-bold text-green-600 text-sm sm:text-base" id="discount-price-display">0 đ</p>
-                    </div>
-                    <!-- Hosting -->
-                    <div class="border-b lg:border-b-0 lg:border-r pb-1 lg:pb-0 lg:pr-2">
-                        <p class="text-xs sm:text-sm text-gray-600">Hosting:</p>
-                        <p class="font-bold text-hospital-theme text-sm sm:text-base" id="hosting-price-display">0 đ</p>
-                    </div>
-                    <!-- Tên miền -->
-                    <div class="pb-1 lg:pb-0 lg:pr-2"> <!-- Bỏ border cuối -->
-                        <p class="text-xs sm:text-sm text-gray-600">Tên miền:</p>
-                        <p class="font-bold text-hospital-theme text-sm sm:text-base" id="domain-price-display">0 đ</p>
-                    </div>
+            <!-- Chi tiết Chi phí (Nội dung gốc) -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full lg:w-3/5 text-center sm:text-left">
+                <div class="border-b sm:border-b-0 sm:border-r pr-2">
+                    <p class="text-sm text-gray-600">Gói Thiết Kế:</p>
+                    <p class="font-bold text-nasani-primary text-base sm:text-lg" id="package-price-display">0 VNĐ</p>
                 </div>
+                <div class="border-b sm:border-b-0 sm:border-r pr-2">
+                    <p class="text-sm text-gray-600">Tính Năng Add-on:</p>
+                    <p class="font-bold text-red-600 text-base sm:text-lg" id="addon-price-display">0 VNĐ</p>
+                </div>
+                 <div class="border-b sm:border-b-0 sm:border-r pr-2 col-span-2 sm:col-span-1">
+                    <p class="text-sm text-gray-600">Hosting/Domain (1 năm):</p>
+                    <p class="font-bold text-hospital-theme text-base sm:text-lg" id="infrastructure-price-display">0 VNĐ</p>
+                </div>
+                <div class="col-span-2 sm:col-span-1 border-t sm:border-t-0 pt-2">
+                    <p class="text-lg font-bold text-gray-800">TỔNG CHI PHÍ (Tạm tính):</p>
+                    <p class="text-2xl sm:text-3xl font-extrabold text-red-700" id="total-cost-display">0 VNĐ</p>
+                </div>
+            </div>
+            
+            <!-- Nút Tương tác (Nội dung gốc) -->
+            <div class="flex flex-col sm:flex-row gap-3 w-full lg:w-2/5 mt-4 lg:mt-0">
                 
-                <!-- Hàng 2: VAT & TỔNG CỘNG -->
-                <!-- **Responsive:** Luôn flex, justify-between -->
-                <div class="flex justify-between items-end w-full border-t pt-2 mt-2">
-                    <div class="text-left">
-                        <p class="text-xs sm:text-sm font-bold text-gray-500">VAT Hạ tầng:</p>
-                        <p class="font-bold text-gray-700 text-sm sm:text-base" id="vat-display">0 đ</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-base sm:text-lg font-bold text-gray-800">TỔNG CỘNG (đã bao gồm VAT):</p>
-                        <p class="text-xl sm:text-2xl font-extrabold text-red-700" id="total-cost-display">0 đ</p>
-                    </div>
-                </div>
+                <!-- NÚT GỌI ĐIỆN NHANH -->
+                <a href="tel:0909876817" class="inline-flex items-center justify-center py-3 px-4 bg-red-500 text-white font-bold rounded-full text-base sm:text-lg shadow-xl hover:bg-red-600 transition duration-300 flex-1">
+                    <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.28-.28.67-.36 1.02-.23 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1v3c0 .55-.45 1-1 1C10.74 21 3 13.26 3 4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.13.35.05.74-.23 1.02l-2.2 2.2z"/></svg>
+                    GỌI TƯ VẤN (0909876817)
+                </a>
+                
+                <!-- NÚT YÊU CẦU BÁO GIÁ CHÍNH THỨC -->
+                <button onclick="finalizeQuote()" class="py-3 px-4 bg-nasani-primary text-white font-bold rounded-full text-base sm:text-lg shadow-xl hover:bg-indigo-600 transition duration-300 flex-1">
+                    YÊU CẦU BÁO GIÁ CHÍNH THỨC
+                </button>
             </div>
-
-            <!-- BLOCK 2: INPUT MÃ & NÚT BẤM -->
-            <div class="flex flex-col gap-3 w-full lg:w-2/5 mt-4 lg:mt-0 lg:pl-6">
-                <!-- Input Mã giảm giá -->
-                <div class="flex gap-2">
-                    <input type="text" id="discount-code-input" placeholder="Nhập mã giảm giá..." class="flex-grow p-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-nasani-primary">
-                    <button id="apply-discount-btn" class="py-2 px-4 bg-gray-600 text-white font-bold rounded-lg shadow-md hover:bg-gray-700 transition duration-300 text-sm">
-                        Áp dụng
-                    </button>
-                </div>
-                <p id="discount-status" class="text-xs text-green-600 font-semibold h-4 -mt-2 mb-1"></p>
-
-                <!-- Nút Tương tác -->
-                <!-- **Responsive:** Mặc định cột, sm hàng -->
-                <div class="flex flex-col sm:flex-row gap-3 w-full">
-                    <a href="tel:0909876817" class="flex-1 inline-flex items-center justify-center py-2 sm:py-3 px-4 bg-red-500 text-white font-bold rounded-full text-sm sm:text-base shadow-xl hover:bg-red-600 transition duration-300">
-                        <svg class="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.28-.28.67-.36 1.02-.23 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1v3c0 .55-.45 1-1 1C10.74 21 3 13.26 3 4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.13.35.05.74-.23 1.02l-2.2 2.2z"/></svg>
-                        GỌI TƯ VẤN
-                    </a>
-                    <button onclick="finalizeQuote()" class="flex-1 py-2 sm:py-3 px-4 bg-nasani-primary text-white font-bold rounded-full text-sm sm:text-base shadow-xl hover:bg-indigo-600 transition duration-300">
-                        YÊU CẦU BÁO GIÁ
-                    </button>
-                </div>
-            </div>
-            
         </div>
     </section>
-    
-    <!-- MODAL ALERT -->
-    <div id="alert-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="hideAlert()">
-        <div class="bg-gray-800 p-6 rounded-xl shadow-2xl max-w-lg w-full border border-gray-700" onclick="event.stopPropagation()">
-            <h2 id="alert-title" class="text-xl sm:text-2xl font-bold text-emerald-400 mb-4">Thông báo</h2>
-            <div id="alert-message" class="text-sm text-gray-300 bg-gray-900/50 border border-gray-700 p-4 rounded-lg max-h-96 overflow-y-auto mb-6"></div>
-            <button id="alert-close-btn" class="w-full text-white font-bold py-3 px-4 rounded-full transition duration-300">Đã hiểu</button>
-        </div>
-    </div>
-
-    <!-- SCRIPT -->
-    <script>
-        tailwind.config = {
-            theme: { extend: { colors: { 'nasani-primary': '#4f46e5', 'nasani-light': '#eef2ff', 'hospital-theme': '#06b6d4' } } }
-        }
-
-        const VAT_RATE_8 = 0.08;
-        const VAT_RATE_0 = 0.0;
-        
-        const PRICES_BASE = {
-            package_basic: 7500000, package_multiple_interface: 10500000, package_full: 13500000,
-            addon_doctor_lookup: 2000000, addon_rating_system: 3500000, addon_bmi_calculator: 2500000, addon_advanced_api: 5000000,
-            addon_project_portfolio: 4000000, addon_estimation_tool: 6000000, addon_booking_spa: 4500000, addon_gallery_before_after: 3000000,
-            addon_ecommerce: 8000000, addon_inventory_management: 5000000,
-            hosting_5gb: 5261760 / (1 + VAT_RATE_8), hosting_7gb: 6480000 / (1 + VAT_RATE_8), hosting_10gb: 7776000 / (1 + VAT_RATE_8), 
-            hosting_16gb: 10886400 / (1 + VAT_RATE_8), hosting_20gb_ca_nhan: 12960000 / (1 + VAT_RATE_8), hosting_25gb: 15552000 / (1 + VAT_RATE_8), 
-            hosting_30gb: 17366400 / (1 + VAT_RATE_8), hosting_40gb_dn: 21686400 / (1 + VAT_RATE_8), hosting_50gb_dn: 25920000 / (1 + VAT_RATE_8), 
-            hosting_70gb_dn: 34603200 / (1 + VAT_RATE_8), hosting_100gb_sieu_dn: 46656000 / (1 + VAT_RATE_8), hosting_200gb_sieu_dn: 77760000 / (1 + VAT_RATE_8), 
-            domain_com: 366120 / (1 + VAT_RATE_8), domain_vn: 820000 / (1 + VAT_RATE_8), domain_com_vn: 691000 / (1 + VAT_RATE_8),
-        };
-
-        let currentDiscountAmount = 0;
-        let currentDiscountType = 'none';
-
-        const calculateFinalPrice = (basePrice, vatRate) => basePrice * (1 + vatRate);
-        
-        const lastCheckedState = new Map();
-        const handleRadioDeselect = (event) => {
-            const currentRadio = event.target;
-            const radioGroup = currentRadio.name;
-            if (lastCheckedState.get(radioGroup) === currentRadio.id) {
-                event.preventDefault(); 
-                currentRadio.checked = false;
-                lastCheckedState.set(radioGroup, null);
-                calculateTotal(); 
-            } else {
-                lastCheckedState.set(radioGroup, currentRadio.id);
-            }
-        };
-
-        const formatCurrency = (amount) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', minimumFractionDigits: 0 }).format(Math.round(amount));
-
-        const handleIndustryChange = () => {
-            document.querySelectorAll('.addon-group').forEach(group => group.style.display = 'none');
-            const selectedRadio = document.querySelector('input[name="industry-option"]:checked');
-            if (selectedRadio) {
-                const selectedIndustryId = selectedRadio.value;
-                const activeAddonGroup = document.getElementById(`addons-${selectedIndustryId}`);
-                if (activeAddonGroup) activeAddonGroup.style.display = 'grid';
-            }
-            document.querySelectorAll('input[name="addon-feature"]:checked').forEach(checkbox => checkbox.checked = false);
-            calculateTotal();
-        };
-
-        const applyDiscount = () => {
-            const inputEl = document.getElementById('discount-code-input');
-            const statusEl = document.getElementById('discount-status');
-            const code = inputEl.value.trim().toUpperCase();
-            currentDiscountAmount = 0; currentDiscountType = 'none'; statusEl.textContent = '';
-            statusEl.className = 'text-xs font-semibold h-4 -mt-2 mb-1'; // Reset class
-
-            if (code === '') { statusEl.textContent = 'Vui lòng nhập mã.'; statusEl.classList.add('text-red-600'); calculateTotal(); return; }
-
-            if (code.startsWith('FI') && code.endsWith('PT')) {
-                const percent = parseFloat(code.substring(2, code.length - 2));
-                if (!isNaN(percent) && percent > 0) {
-                    currentDiscountAmount = percent; currentDiscountType = 'percent'; statusEl.textContent = `Áp dụng giảm ${percent}%.`; statusEl.classList.add('text-green-600');
-                } else { statusEl.textContent = 'Mã % không hợp lệ.'; statusEl.classList.add('text-red-600'); }
-            } else if (code.startsWith('FI') && code.endsWith('TR')) {
-                let amountString = code.substring(2, code.length - 2); let amount = 0;
-                if (amountString.includes('TR')) {
-                    const parts = amountString.split('TR'); const trieu = parseFloat(parts[0]); const tram = parseFloat(parts[1]) / 10;
-                    if (!isNaN(trieu) && !isNaN(tram)) amount = (trieu + tram) * 1000000;
-                } else { amount = parseFloat(amountString) * 1000000; }
-                if (!isNaN(amount) && amount > 0) {
-                    currentDiscountAmount = amount; currentDiscountType = 'fixed'; statusEl.textContent = `Áp dụng giảm ${formatCurrency(amount)}.`; statusEl.classList.add('text-green-600');
-                } else { statusEl.textContent = 'Mã tiền mặt không hợp lệ.'; statusEl.classList.add('text-red-600'); }
-            } else { statusEl.textContent = 'Mã không hợp lệ (FI...PT/TR).'; statusEl.classList.add('text-red-600'); }
-            calculateTotal();
-        };
-
-        const calculateTotal = () => {
-            let packageBasePrice = 0, currentAddonBaseCost = 0, hostingBasePrice = 0, domainBasePrice = 0;
-            
-            const selectedPackage = document.querySelector('input[name="package-option"]:checked');
-            if (selectedPackage) packageBasePrice = PRICES_BASE[selectedPackage.id];
-
-            const selectedIndustryRadio = document.querySelector('input[name="industry-option"]:checked');
-            if (selectedIndustryRadio) {
-                const activeAddonGroup = document.getElementById(`addons-${selectedIndustryRadio.value}`);
-                if (activeAddonGroup && activeAddonGroup.style.display !== 'none') {
-                    activeAddonGroup.querySelectorAll('input[name="addon-feature"]:checked').forEach(cb => { if (PRICES_BASE[cb.id]) currentAddonBaseCost += PRICES_BASE[cb.id]; });
-                }
-            }
-
-            const selectedHosting = document.querySelector('input[name="hosting-option"]:checked');
-            if (selectedHosting) hostingBasePrice = PRICES_BASE[selectedHosting.id];
-            
-            const selectedDomain = document.querySelector('input[name="domain-option"]:checked');
-            if (selectedDomain) domainBasePrice = PRICES_BASE[selectedDomain.id];
-            
-            let totalDesignBaseCost = packageBasePrice + currentAddonBaseCost;
-            let finalDiscountAmount = 0;
-            if (currentDiscountType === 'percent') finalDiscountAmount = totalDesignBaseCost * (currentDiscountAmount / 100);
-            else if (currentDiscountType === 'fixed') finalDiscountAmount = currentDiscountAmount;
-            if (finalDiscountAmount > totalDesignBaseCost) finalDiscountAmount = totalDesignBaseCost;
-            const totalDesignCostAfterDiscount = totalDesignBaseCost - finalDiscountAmount;
-
-            const packageFinalCost = calculateFinalPrice(packageBasePrice, VAT_RATE_0);
-            const addonFinalCost = calculateFinalPrice(currentAddonBaseCost, VAT_RATE_0);
-            const totalDesignFinalCost = calculateFinalPrice(totalDesignCostAfterDiscount, VAT_RATE_0);
-            const hostingFinalCost = calculateFinalPrice(hostingBasePrice, VAT_RATE_8);
-            const domainFinalCost = calculateFinalPrice(domainBasePrice, VAT_RATE_8);
-            const totalInfrastructureCost = hostingFinalCost + domainFinalCost;
-            const totalFinalCost = totalDesignFinalCost + totalInfrastructureCost;
-            const infrastructureBaseCost = hostingBasePrice + domainBasePrice;
-            const vatAmount = infrastructureBaseCost * VAT_RATE_8;
-
-            // Đơn giản hóa hiển thị tiền tệ
-            const formatShortCurrency = (amount) => formatCurrency(amount).replace(" VNĐ", " đ");
-
-            document.getElementById('package-price-display').textContent = formatShortCurrency(packageFinalCost);
-            document.getElementById('addon-price-display').textContent = formatShortCurrency(addonFinalCost);
-            document.getElementById('discount-price-display').textContent = formatShortCurrency(-finalDiscountAmount); 
-            document.getElementById('hosting-price-display').textContent = formatShortCurrency(hostingFinalCost); 
-            document.getElementById('domain-price-display').textContent = formatShortCurrency(domainFinalCost); 
-            document.getElementById('vat-display').textContent = formatShortCurrency(vatAmount);
-            document.getElementById('total-cost-display').textContent = formatShortCurrency(totalFinalCost);
-
-            window.costData = { totalDesignCost: totalDesignFinalCost, totalInfrastructureCost, hostingFinalCost, domainFinalCost, totalFinalCost, finalDiscountAmount };
-        };
-
-        const toggleExtraPackages = () => {
-            const container = document.getElementById('extra-hosting-packages');
-            const button = document.getElementById('toggle-extra-packages-btn');
-            container.classList.toggle('expanded');
-            if (container.classList.contains('expanded')) {
-                button.textContent = 'Thu gọn các gói Hosting'; button.classList.remove('bg-gray-500'); button.classList.add('bg-red-500');
-            } else {
-                button.textContent = 'Xem thêm các gói Hosting khác'; button.classList.remove('bg-red-500'); button.classList.add('bg-gray-500');
-            }
-        };
-
-        const showAlert = (title, message, type = 'error') => {
-            const modal = document.getElementById('alert-modal'), modalTitle = document.getElementById('alert-title'), modalMessage = document.getElementById('alert-message'), closeBtn = document.getElementById('alert-close-btn');
-            if (!modal || !modalTitle || !modalMessage || !closeBtn) return;
-            modalTitle.textContent = title; modalMessage.innerHTML = message;
-            if (type === 'success') {
-                modalTitle.className = "text-xl sm:text-2xl font-bold text-emerald-400 mb-4"; closeBtn.className = "w-full bg-nasani-primary text-white font-bold py-3 px-4 rounded-full hover:bg-indigo-600 transition duration-300";
-            } else {
-                modalTitle.className = "text-xl sm:text-2xl font-bold text-orange-400 mb-4"; closeBtn.className = "w-full bg-orange-500 text-white font-bold py-3 px-4 rounded-full hover:bg-orange-600 transition duration-300";
-            }
-            modal.classList.remove('hidden');
-        };
-
-        const hideAlert = () => { const modal = document.getElementById('alert-modal'); if (modal) modal.classList.add('hidden'); };
-
-        document.addEventListener('DOMContentLoaded', () => {
-            document.querySelectorAll('input[name="package-option"], input[name="hosting-option"], input[name="domain-option"], input[name="addon-feature"]').forEach(input => input.addEventListener('change', calculateTotal));
-            document.querySelectorAll('input[name="package-option"], input[name="hosting-option"], input[name="domain-option"]').forEach(input => { input.addEventListener('click', handleRadioDeselect); if (input.checked) input.checked = false; });
-            document.getElementById('toggle-extra-packages-btn').addEventListener('click', toggleExtraPackages);
-            document.getElementById('alert-close-btn').addEventListener('click', hideAlert);
-            document.querySelectorAll('input[name="industry-option"]').forEach(input => input.addEventListener('change', handleIndustryChange));
-            document.getElementById('apply-discount-btn').addEventListener('click', applyDiscount);
-            document.getElementById('industry-yte').checked = true;
-            handleIndustryChange(); 
-            calculateTotal(); 
-        });
-        
-        const finalizeQuote = () => {
-            const data = window.costData, selectedPackage = document.querySelector('input[name="package-option"]:checked'), selectedHosting = document.querySelector('input[name="hosting-option"]:checked'), selectedDomain = document.querySelector('input[name="domain-option"]:checked');
-            if (!selectedPackage) {
-                const packageSection = document.getElementById('package-section'); if (packageSection) packageSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                const errorHtml = `<div class="text-center"><p class="text-base text-gray-300">Bạn cần chọn một <b>Gói Thiết kế (ở mục II)</b>.</p><p class="text-sm text-gray-400 mt-2">Trang sẽ tự động cuộn đến mục còn thiếu.</p></div>`;
-                showAlert('Vui lòng hoàn tất', errorHtml, 'error'); return;
-            }
-            const designCostHalf = data.totalDesignCost / 2, totalInfrastructureCost = data.totalInfrastructureCost;
-            const designCostHalfFormatted = formatCurrency(designCostHalf), totalInfrastructureCostFormatted = formatCurrency(totalInfrastructureCost), totalFinalCostFormatted = formatCurrency(data.totalFinalCost);
-            let paymentDetails = `<div class="w-full text-left space-y-4"><div><p class="text-sm text-gray-400 uppercase tracking-wide">TỔNG CHI PHÍ DỰ KIẾN (ĐÃ VAT):</p><p class="text-2xl sm:text-3xl font-bold text-white">${totalFinalCostFormatted}</p></div>`;
-            if (data.finalDiscountAmount > 0) paymentDetails += `<div><p class="text-sm text-gray-400 uppercase tracking-wide">ĐÃ GIẢM (Gói Web + Add-on):</p><p class="text-lg sm:text-xl font-bold text-green-500">-${formatCurrency(data.finalDiscountAmount)}</p></div>`;
-            paymentDetails += `<hr class="my-4 border-gray-600"><p class="text-base font-semibold text-gray-200 mb-3">PHƯƠNG THỨC THANH TOÁN (3 ĐỢT):</p><div class="space-y-3"><div><p class="font-semibold text-nasani-primary">ĐỢT 1 (Ký Hợp đồng):</p><p class="text-sm text-gray-300"><b>Chi phí:</b> ${designCostHalfFormatted}</p><p class="text-sm text-gray-300"><b>Nội dung:</b> 50% Chi phí Thiết kế (Đã Giảm giá)</p></div><div><p class="font-semibold text-hospital-theme">ĐỢT 2 (Triển khai Hạ tầng):</p><p class="text-sm text-gray-300"><b>Chi phí:</b> ${totalInfrastructureCostFormatted}</p><p class="text-sm text-gray-300"><b>Nội dung:</b> 100% Hosting & Tên miền (Đã VAT)</p></div><div><p class="font-semibold text-nasani-primary">ĐỢT 3 (Bàn giao & Nghiệm thu):</p><p class="text-sm text-gray-300"><b>Chi phí:</b> ${designCostHalfFormatted}</p><p class="text-sm text-gray-300"><b>Nội dung:</b> 50% Chi phí Thiết kế còn lại + Hướng dẫn</p></div></div></div>`;
-            let warningMessage = '';
-            if (!selectedHosting || !selectedDomain) warningMessage = `<div class="mt-4 border-t border-gray-600 pt-4"><p class="text-sm text-orange-400 font-semibold">⚠️ CẢNH BÁO:</p><p class="text-sm text-gray-300">Vui lòng chọn Hosting và Tên miền để có thể thanh toán Đợt 2.</p></div>`;
-            const contactMessage = `<hr class="my-4 border-gray-600"><p class="text-sm text-center text-gray-400">Chúng tôi sẽ liên hệ lại ngay (<b>0909876817</b>) để xác nhận.</p>`;
-            showAlert('Yêu cầu báo giá thành công!', paymentDetails + warningMessage + contactMessage, 'success');
-        }
-    </script>
 </body>
 </html>
+
