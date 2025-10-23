@@ -66,6 +66,11 @@
             transition: opacity 0.3s ease;
         }
 
+        /* **CSS MỚI:** Dành cho trang đăng nhập */
+        #login-page {
+            transition: opacity 0.5s ease-in-out;
+        }
+
         /* **CSS CẢI TIẾN:** Thanh trượt báo giá */
         #quote-details-panel {
             max-height: 0;
@@ -86,49 +91,49 @@
 </head>
 <body>
     
-    <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+    <!-- **MỚI:** Trang đăng nhập -->
+    <div id="login-page" class="min-h-screen bg-gray-100 flex flex-col justify-center items-center p-4">
+        <div class="max-w-md w-full bg-white rounded-xl shadow-2xl p-8">
+            <h2 class="text-3xl font-extrabold text-center text-nasani-primary mb-2">Đăng Nhập</h2>
+            <p class="text-center text-gray-600 mb-6">Vui lòng đăng nhập để xem báo giá.</p>
+            <form id="login-form">
+                <div class="mb-4">
+                    <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email" id="email" name="email" required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-nasani-primary focus:border-transparent"
+                           placeholder="ban@email.com">
+                </div>
+                <div class="mb-6">
+                    <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Mật khẩu</label>
+                    <input type="password" id="password" name="password" required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-nasani-primary focus:border-transparent"
+                           placeholder="••••••••">
+                </div>
+                <button type="submit"
+                        class="w-full bg-nasani-primary text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:bg-indigo-600 transition duration-300">
+                    Đăng Nhập
+                </button>
+                <p id="login-error" class="text-red-600 text-sm text-center mt-4 h-4"></p>
+            </form>
+        </div>
+        <p class="text-gray-500 text-xs text-center mt-6">
+            &copy; 2025 Nasani.vn. Yêu cầu tài khoản từ quản trị viên.
+        </p>
+    </div>
 
-        <!-- Header Section -->
-        <header class="text-center mb-12 bg-white p-6 sm:p-10 rounded-xl shadow-lg">
-            <h1 class="text-3xl sm:text-4xl font-extrabold text-nasani-primary mb-2">
-                BÁO GIÁ DỊCH VỤ THIẾT KẾ WEBSITE
-            </h1>
-            <p class="text-lg sm:text-xl text-gray-700">Giải pháp chuyên nghiệp cho <span class="font-semibold text-hospital-theme">Mọi Ngành Nghề</span></p>
-            
-             <div class="mt-4 text-sm text-gray-600 bg-gray-50 p-4 rounded-lg border border-gray-100">
-                 <p class="font-bold text-gray-800 mb-2 uppercase text-base">CÔNG TY TNHH CÔNG NGHỆ PHẦN MỀM NASANI</p>
-                 <div class="grid grid-cols-1 md:grid-cols-3 gap-2 text-left pt-2 border-t border-gray-200 space-y-3 md:space-y-0">
-                     <p class="flex items-start text-sm col-span-full md:col-span-1">
-                         <svg class="w-4 h-4 mr-2 mt-0.5 text-nasani-primary flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
-                         <span class="text-gray-700">Lầu 1 Tòa nhà Saigon ICT, Lô 46 CVPM Quang Trung, P. Trung Mỹ Tây, TP. Hồ Chí Minh.</span>
-                     </p>
-                     <div class="flex flex-col space-y-1 text-sm md:col-span-1">
-                         <p class="flex items-center text-gray-700 font-medium">
-                             <svg class="w-4 h-4 mr-2 text-hospital-theme flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.28-.28.67-.36 1.02-.23 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1v3c0 .55-.45 1-1 1C10.74 21 3 13.26 3 4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.13.35.05.74-.23 1.02l-2.2 2.2z"/></svg> 
-                             Tel: 028.37154879 | Fax: 028.37154878
-                         </p>
-                          <p class="flex items-center text-gray-700 font-medium">
-                             <svg class="w-4 h-4 mr-2 text-hospital-theme flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg> 
-                             Email: nasani@nasani.vn
-                         </p>
-                     </div>
-                     <div class="flex flex-col space-y-1 text-sm md:col-span-1">
-                         <p class="flex items-center text-gray-700 font-medium">
-                             <svg class="w-4 h-4 mr-2 text-hospital-theme flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M11 17h2v-6h-2v6zm1-15C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
-                             MST: 0319082906
-                         </p>
-                         <p class="flex items-center text-gray-700 font-medium">
-                             <svg class="w-4 h-4 mr-2 text-hospital-theme flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zm-2-5H6v-2h12v2z"/></svg> 
-                             TK: 1357668868 (Techcombank)
-                         </p>
-                     </div>
-                 </div>
-            </div>
-        </header>
+    <!-- **MỚI:** Toàn bộ ứng dụng báo giá được bao bọc lại và ẩn đi -->
+    <div id="quote-app" class="hidden">
+        <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
 
-        <!-- II. CÁC GÓI THIẾT KẾ & TÍCH CHỌN -->
-        <section id="package-section" class="mb-12">
-            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-nasani-primary pb-2 mb-8">II. Chọn Gói Thiết Kế (Không áp dụng VAT cho phần này)</h2>
+            <!-- Header Section -->
+            <header class="text-center mb-12 bg-white p-6 sm:p-10 rounded-xl shadow-lg relative">
+                 <!-- **MỚI:** Nút Đăng xuất -->
+                <button id="logout-button" class="absolute top-4 right-4 bg-red-500 text-white text-xs font-bold py-2 px-3 rounded-full hover:bg-red-600 transition-all duration-300 shadow-md">
+                    Đăng xuất
+                </button>
+
+                <h1 class="text-3xl sm:text-4xl font-extrabold text-nasani-primary mb-2">
+                    BÁO GIÁ DỊCH VỤ THIẾT KẾ WEBSITE
             <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <!-- Gói Cơ Bản -->
                 <label for="package_basic" class="cursor-pointer bg-white p-6 rounded-xl shadow-lg border-4 border-gray-400 has-[:checked]:border-gray-700 has-[:checked]:ring-4 has-[:checked]:ring-gray-300 transition duration-300 hover:shadow-xl flex flex-col">
@@ -612,7 +617,9 @@
         </div>
     </div>
     
-    <!-- MODAL ALERT -->
+    </div> <!-- **MỚI:** Đóng thẻ bọc #quote-app -->
+
+    <!-- MODAL ALERT (Giữ nguyên bên ngoài) -->
     <div id="alert-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick="hideAlert()">
         <div class="bg-gray-800 p-6 rounded-xl shadow-2xl max-w-lg w-full border border-gray-700" onclick="event.stopPropagation()">
             <h2 id="alert-title" class="text-xl sm:text-2xl font-bold text-emerald-400 mb-4">Thông báo</h2>
@@ -622,7 +629,209 @@
     </div>
 
     <!-- SCRIPT -->
-    <script>
+    <!-- **MỚI:** Thêm Firebase SDK -->
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInWithEmailAndPassword, 
+            onAuthStateChanged, 
+            signOut,
+            signInAnonymously,
+            signInWithCustomToken
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            getDoc,
+            setLogLevel 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Cấu hình Firebase ---
+        // Sử dụng các biến toàn cục (nếu có) hoặc fallback
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = (typeof __firebase_config !== 'undefined' && __firebase_config)
+            ? JSON.parse(__firebase_config)
+            // Fallback config (thay bằng config thật của bạn nếu test bên ngoài)
+            : {
+                apiKey: "AIzaSyBjtAE_BQa4zDnq8PB5xsPP_Z-qg4Vot7k",
+                authDomain: "bao-gia-web.firebaseapp.com",
+                projectId: "bao-gia-web",
+                storageBucket: "bao-gia-web.firebasestorage.app",
+                messagingSenderId: "472244723719",
+                appId: "G-D5FDS638MQ"
+            };
+
+        // Khởi tạo Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        setLogLevel('Debug'); // Bật log để debug
+
+        // --- DOM Elements ---
+        const loginPage = document.getElementById('login-page');
+        const quoteApp = document.getElementById('quote-app');
+        const loginForm = document.getElementById('login-form');
+        const loginError = document.getElementById('login-error');
+        const logoutButton = document.getElementById('logout-button');
+
+        // --- Logic xác thực ---
+
+        /**
+         * Kiểm tra xem người dùng có quyền truy cập không (dựa vào Firestore)
+         * Chúng ta sẽ dùng email làm key cho đơn giản
+         */
+        async function checkUserAccess(email) {
+            if (!email) return false;
+            
+            try {
+                // Đường dẫn đến collection public chứa danh sách user được phép
+                // Cấu trúc: /artifacts/{appId}/public/data/allowedUsers/{user-email}
+                const userDocRef = doc(db, "artifacts", appId, "public", "data", "allowedUsers", email);
+                const userDoc = await getDoc(userDocRef);
+                
+                if (userDoc.exists()) {
+                    console.log("User access granted:", email);
+                    return true;
+                } else {
+                    console.warn("User access denied:", email, "Document not found at path:", userDocRef.path);
+                    return false;
+                }
+            } catch (error) {
+                console.error("Error checking user access:", error);
+                return false;
+            }
+        }
+
+        /**
+         * Hiển thị ứng dụng báo giá
+         */
+        function showQuoteApp() {
+            loginPage.style.opacity = '0';
+            setTimeout(() => {
+                loginPage.classList.add('hidden');
+                quoteApp.classList.remove('hidden');
+            }, 500); // Chờ transition hoàn tất
+        }
+
+        /**
+         * Hiển thị trang đăng nhập
+         */
+        function showLoginPage() {
+            quoteApp.classList.add('hidden');
+            loginPage.classList.remove('hidden');
+            setTimeout(() => {
+                loginPage.style.opacity = '1';
+            }, 50); // Delay nhỏ để transition chạy
+        }
+
+        /**
+         * Xử lý đăng nhập
+         */
+        async function handleLogin(event) {
+            event.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            loginError.textContent = '';
+
+            try {
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                // Đã đăng nhập, không cần kiểm tra access ở đây
+                // onAuthStateChanged sẽ xử lý việc kiểm tra access
+                console.log("Login successful, waiting for auth state change...");
+            } catch (error) {
+                console.error("Login failed:", error);
+                if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-email') {
+                    loginError.textContent = 'Email hoặc mật khẩu không đúng.';
+                } else {
+                    loginError.textContent = 'Đã xảy ra lỗi. Vui lòng thử lại.';
+                }
+            }
+        }
+
+        /**
+         * Xử lý đăng xuất
+         */
+        async function handleLogout() {
+            try {
+                await signOut(auth);
+                console.log("Logout successful");
+                // onAuthStateChanged sẽ tự động xử lý việc hiển thị trang login
+            } catch (error) {
+                console.error("Logout failed:", error);
+            }
+        }
+
+        /**
+         * Theo dõi trạng thái đăng nhập
+         */
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                // Người dùng đã đăng nhập
+                console.log("Auth state changed: User is logged in", user.email);
+                const hasAccess = await checkUserAccess(user.email);
+                
+                if (hasAccess) {
+                    // Có quyền, hiển thị app
+                    showQuoteApp();
+                } else {
+                    // Không có quyền, đăng xuất và báo lỗi
+                    // Cần hiển thị lỗi trên trang login, nên chúng ta cần đảm bảo nó hiển thị
+                    showLoginPage();
+                    loginError.textContent = 'Tài khoản của bạn không có quyền truy cập.';
+                    await handleLogout();
+                }
+            } else {
+                // Người dùng đã đăng xuất
+                console.log("Auth state changed: User is logged out");
+                showLoginPage();
+            }
+        });
+        
+        /**
+         * Đăng nhập ban đầu với token (nếu có)
+         * Điều này là cần thiết để có thể đọc/ghi Firestore theo rules.
+         * Tuy nhiên, trong app này, chúng ta muốn ép đăng nhập,
+         * nên chúng ta sẽ không tự động đăng nhập.
+         */
+        (async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) { 
+                    // Nếu có token, đăng nhập để có thể đọc firestore
+                    await signInWithCustomToken(auth, __initial_auth_token); 
+                    console.log("Signed in with custom token.");
+                    // onAuthStateChanged sẽ được kích hoạt
+                } else { 
+                    // Nếu không có token, đăng nhập ẩn danh để có thể đọc
+                    // collection public (nếu rules cho phép)
+                    // Tuy nhiên, logic onAuthStateChanged sẽ check user VÀ
+                    // quyền truy cập, nên user ẩn danh sẽ bị từ chối
+                    // và vẫn thấy trang login.
+                    // await signInAnonymously(auth);
+                    // console.log("Signed in anonymously.");
+                    
+                    // Quyết định: Không tự động đăng nhập.
+                    // onAuthStateChanged sẽ chạy với user = null
+                    // và hiển thị trang login.
+                    console.log("No initial token. Waiting for user login.");
+                    showLoginPage(); // Hiển thị rõ ràng trang login
+                }
+            } catch (error) {
+                console.error("Initial auth error:", error);
+                showLoginPage(); // Nếu lỗi cũng hiện trang login
+            }
+        })();
+
+
+        // --- Gắn sự kiện ---
+        loginForm.addEventListener('submit', handleLogin);
+        logoutButton.addEventListener('click', handleLogout);
+
+
+        // --- SCRIPT BÁO GIÁ GỐC ---
+        // (Toàn bộ script gốc được đặt bên trong module)
+        
         tailwind.config = {
             theme: { extend: { colors: { 'nasani-primary': '#4f46e5', 'nasani-light': '#eef2ff', 'hospital-theme': '#06b6d4' } } }
         }
@@ -831,6 +1040,7 @@
             const contactMessage = `<hr class="my-4 border-gray-600"><p class="text-sm text-center text-gray-400">Chúng tôi sẽ liên hệ lại ngay (<b>0909876817</b>) để xác nhận.</p>`;
             showAlert('Yêu cầu báo giá thành công!', paymentDetails + warningMessage + contactMessage, 'success');
         }
-    </script>
+
+    </script> <!-- **MỚI:** Đóng thẻ script module -->
 </body>
 </html>
